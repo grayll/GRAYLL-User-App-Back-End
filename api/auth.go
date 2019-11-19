@@ -6,7 +6,7 @@ import (
 
 	//	"os"
 
-	jwttool "bitbucket.org/grayll/user-app-backend/jwt-tool"
+	jwttool "bitbucket.org/grayll/grayll.io-user-app-back-end/jwt-tool"
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/dgrijalva/jwt-go/request"
 	"github.com/gin-gonic/gin"

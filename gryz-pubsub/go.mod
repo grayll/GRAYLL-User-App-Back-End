@@ -1,4 +1,4 @@
-module bitbucket.org/grayll/user-app-backend/gryz-pubsub
+module bitbucket.org/grayll/grayll.io-user-app-back-end/gryz-pubsub
 
 go 1.12
 

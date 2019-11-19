@@ -8,7 +8,7 @@ import (
 	//"fmt"
 	"time"
 
-	"github.com/matcornic/hermes/v2"
+	"github.com/huyntsgs/hermes"
 )
 
 type Email struct {

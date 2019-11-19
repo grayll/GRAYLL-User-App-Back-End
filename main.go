@@ -5,13 +5,14 @@ import (
 	"os"
 	"time"
 
-	"bitbucket.org/grayll/user-app-backend/api"
-	jwttool "bitbucket.org/grayll/user-app-backend/jwt-tool"
+	"bitbucket.org/grayll/grayll.io-user-app-back-end/api"
+	jwttool "bitbucket.org/grayll/grayll.io-user-app-back-end/jwt-tool"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
 	"cloud.google.com/go/firestore"
+	"github.com/davecgh/go-spew/spew"
 	stellar "github.com/huyntsgs/stellar-service"
 	"github.com/huyntsgs/stellar-service/assets"
 )
@@ -23,10 +24,10 @@ func main() {
 	}
 	var store *firestore.Client
 
-	config := parseConfig("config1.json")
+	config := parseConfig("config.json")
 	asset := assets.Asset{Code: config.AssetCode, IssuerAddress: config.IssuerAddress}
 
-	log.Println("config data:", config)
+	spew.Dump(config)
 
 	if config.IsMainNet {
 		config.IsMainNet = true

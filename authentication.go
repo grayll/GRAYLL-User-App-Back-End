@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"strings"
 
-	//"bitbucket.org/grayll/user-app-backend/utils"
+	//"bitbucket.org/grayll/grayll.io-user-app-back-end/utils"
 
 	"log"
 	"net/http"
 
-	//"bitbucket.org/grayll/user-app-backend/mail"
+	//"bitbucket.org/grayll/grayll.io-user-app-back-end/mail"
 
 	"time"
 	//firebase "firebase.google.com/go"

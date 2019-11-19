@@ -4,7 +4,7 @@
 FROM golang:1.12 as builder
 
 # Copy local code to the container image.
-WORKDIR /go/src/bitbucket.org/grayll/user-app-backend/gryz-pubsub
+WORKDIR /go/src/bitbucket.org/grayll/grayll.io-user-app-back-end/gryz-pubsub
 COPY . .
 
 # Build the command inside the container.
@@ -19,9 +19,9 @@ FROM alpine
 RUN apk add --no-cache ca-certificates
 
 # Copy the binary to the production image from the builder stage.
-COPY --from=builder /go/src/bitbucket.org/grayll/user-app-backend/gryz-pubsub/gryz /gryz
-#COPY --from=builder /go/src/bitbucket.org/grayll/user-app-backend/key /key
-#COPY --from=builder /go/src/bitbucket.org/grayll/user-app-backend/grayll-app-f3f3f3-firebase-adminsdk-vhclm-e074da6170.json /grayll-app-f3f3f3-firebase-adminsdk-vhclm-e074da6170.json
+COPY --from=builder /go/src/bitbucket.org/grayll/grayll.io-user-app-back-end/gryz-pubsub/gryz /gryz
+#COPY --from=builder /go/src/bitbucket.org/grayll/grayll.io-user-app-back-end/key /key
+#COPY --from=builder /go/src/bitbucket.org/grayll/grayll.io-user-app-back-end/grayll-app-f3f3f3-firebase-adminsdk-vhclm-e074da6170.json /grayll-app-f3f3f3-firebase-adminsdk-vhclm-e074da6170.json
 #ENV PORT 8080
 #EXPOSE PORT
 # Run the web service on container startup.

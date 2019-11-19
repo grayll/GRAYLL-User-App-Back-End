@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"bitbucket.org/grayll/user-app-backend/api"
+	"bitbucket.org/grayll/grayll.io-user-app-back-end/api"
 )
 
 func parseConfig(path string) *api.Config {

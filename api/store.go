@@ -4,7 +4,7 @@ import (
 	"context"
 	//"log"
 
-	//"bitbucket.org/grayll/user-app-backend/models"
+	//"bitbucket.org/grayll/grayll.io-user-app-back-end/models"
 	"cloud.google.com/go/firestore"
 
 	"google.golang.org/api/iterator"

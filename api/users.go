@@ -15,9 +15,9 @@ import (
 	"net/url"
 	"time"
 
-	"bitbucket.org/grayll/user-app-backend/mail"
-	"bitbucket.org/grayll/user-app-backend/models"
-	"bitbucket.org/grayll/user-app-backend/utils"
+	"bitbucket.org/grayll/grayll.io-user-app-back-end/mail"
+	"bitbucket.org/grayll/grayll.io-user-app-back-end/models"
+	"bitbucket.org/grayll/grayll.io-user-app-back-end/utils"
 	"cloud.google.com/go/firestore"
 	"github.com/asaskevich/govalidator"
 	"github.com/avct/uasurfer"
@@ -152,8 +152,8 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		go func(res chan int) {
 			ipConfirm := setting["IpConfirm"].(bool)
 			if currentIp != userInfo["Ip"].(string) && !ipConfirm {
-				secondIp := userInfo["SecondIp"].(string)
-				if currentIp != secondIp {
+				secondIp, ok := userInfo["SecondIp"]
+				if ok && currentIp != secondIp.(string) {
 					// already set second ip, warning email
 					log.Println("Ip is not matched. Sent warning email")
 					res <- 0
@@ -984,7 +984,7 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 			"EnSecretKey":   input.EnSecretKey,
 			"SecretKeySalt": input.Salt,
 			"IsLoan":        true,
-			"ActivatedAt":   time.Now(),
+			"ActivatedAt":   time.Now().Unix(),
 			// "Setting": map[string]interface{}{
 			// 	"IpConfirm": true, "MulSignature": true, "AppGeneral": true, "AppWallet": true, "AppAlgo": true, "MailGeneral": true, "MailWallet": true, "MailAlgo": true,
 			// },
@@ -1004,19 +1004,19 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 			}
 
 			// Set setting cache
-			// data := map[string]bool{"IpConfirm": true, "MulSignature": true, "AppGeneral": true, "AppWallet": true,
-			// 	"AppAlgo": true, "MailGeneral": true, "MailWallet": true, "MailAlgo": true}
-			// for k, v := range data {
-			// 	_, err = h.apiContext.Cache.SetNotice(uid, k, v)
-			// 	if err != nil {
-			// 		log.Printf(uid+": SetNotice cache error %v\n", err)
-			// 	}
-			// }
-			_, err = h.apiContext.Cache.SetNotices(uid, "IpConfirm", true, "MulSignature", true, "AppGeneral", true, "AppWallet", true,
-				"AppAlgo", true, "MailGeneral", true, "MailWallet", true, "MailAlgo", true)
-			if err != nil {
-				log.Printf(uid+": SetNotice cache error %v\n", err)
+			data := map[string]bool{"IpConfirm": true, "MulSignature": true, "AppGeneral": true, "AppWallet": true,
+				"AppAlgo": true, "MailGeneral": true, "MailWallet": true, "MailAlgo": true}
+			for k, v := range data {
+				_, err = h.apiContext.Cache.SetNotice(uid, k, v)
+				if err != nil {
+					log.Printf(uid+": SetNotice cache error %v\n", err)
+				}
 			}
+			// _, err = h.apiContext.Cache.SetNotices(uid, "IpConfirm", "1", "MulSignature", "1", "AppGeneral", "1", "AppWallet", "1",
+			// 	"AppAlgo", "1", "MailGeneral", "1", "MailWallet", "1", "MailAlgo", "1")
+			// if err != nil {
+			// 	log.Printf(uid+": SetNotice cache error %v\n", err)
+			// }
 
 		}()
 

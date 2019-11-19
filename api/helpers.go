@@ -15,7 +15,7 @@ import (
 	"encoding/json"
 
 	"github.com/gin-gonic/gin"
-	//"bitbucket.org/grayll/user-app-backend/utils"
+	//"bitbucket.org/grayll/grayll.io-user-app-back-end/utils"
 )
 
 func GinRespond(c *gin.Context, status int, errCode, msg string) {
