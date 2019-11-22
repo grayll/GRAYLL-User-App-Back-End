@@ -1,13 +1,12 @@
 package api
 
 import (
-	"errors"
 	"log"
 	"testing"
 )
 
-func TestParsePayment(t *testing.T) (string, string, float64, err) {
-	em, err := ParseLedgerData("https://horizon-testnet.stellar.org/ledgers/1072717/payments")
+func TestParsePayment(t *testing.T) {
+	em, err := ParseLedgerData("https://horizon.stellar.org/ledgers/26871047/payments")
 	if err != nil {
 		log.Println(err)
 	} else {
@@ -24,10 +23,10 @@ func TestParsePayment(t *testing.T) (string, string, float64, err) {
 			log.Println(from)
 			log.Println(to)
 			log.Println(amount)
-			return from, to, amount, nil
+			//return from, to, amount, nil
 		} else {
 			log.Println("Can not find key from")
-			return "", "", "", errors.New("Invalid ledger Id")
+			//return "", "", "", errors.New("Invalid ledger Id")
 		}
 	}
 }

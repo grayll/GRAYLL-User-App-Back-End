@@ -37,6 +37,7 @@ func ParseLedgerData(url string) (*LedgerPayment, error) {
 
 	res, err := http.Get(url)
 	if err != nil {
+		log.Println("http.Get "+url+" error:", err)
 		return nil, err
 	}
 
@@ -46,7 +47,7 @@ func ParseLedgerData(url string) (*LedgerPayment, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Println("data:", string(data))
+	//log.Println("data:", string(data))
 
 	err = json.Unmarshal(data, &ledger)
 	if err != nil {
@@ -60,9 +61,8 @@ func GetLedgerInfo(url, publicKey, xlmLoaner string) (string, string, float64, e
 	//"https://horizon-testnet.stellar.org/ledgers/1072717/payments"
 	em, err := ParseLedgerData(url)
 	if err != nil {
-		log.Println(err)
-	} else {
-		log.Println(em)
+		log.Println("ParseLedgerData err:", err)
+		return "", "", 0, err
 	}
 
 	for _, record := range em.Embed.Records {
@@ -70,7 +70,7 @@ func GetLedgerInfo(url, publicKey, xlmLoaner string) (string, string, float64, e
 			to, _ := record["to"]
 			amount, _ := record["amount"]
 
-			log.Println(from)
+			log.Println("from:", from)
 			log.Println(to)
 			log.Println(amount)
 

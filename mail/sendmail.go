@@ -171,6 +171,7 @@ func (email *Email) GenConfirmIp(firstName, url string, expiredInDays int, mores
 				"City: " + mores["city"],
 				"Country: " + mores["country"],
 				"If this wasn't you - please contact us immediately!",
+				"support@grayll.io",
 			},
 		},
 	}
@@ -192,6 +193,7 @@ func (email *Email) GenLoginNotice(firstName string, mores map[string]string) (s
 				"City: " + mores["city"],
 				"Country: " + mores["country"],
 				"If this wasn't you - please contact us immediately!",
+				"support@grayll.io",
 			},
 		},
 	}

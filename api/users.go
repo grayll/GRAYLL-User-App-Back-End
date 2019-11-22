@@ -253,8 +253,9 @@ func (h UserHandler) Login() gin.HandlerFunc {
 			userInfo["Subs"] = true
 		}
 		tokenStr, err := h.apiContext.Jwt.GenToken(uid, 60)
+
 		c.JSON(http.StatusOK, gin.H{
-			"errCode": SUCCESS, "user": userInfo, "token": tokenStr,
+			"errCode": SUCCESS, "user": userInfo, "token": tokenStr, "tokenExpiredTime": (time.Now().Unix() + int64(24*60*60-5)),
 		})
 	}
 }
@@ -937,7 +938,7 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 		}
 
 		if stellar.IsMainNet {
-			seq, hash, err := stellar.SendXLMCreateAccount(input.PublicKey, float64(1.5001), h.apiContext.Config.XlmLoanerSeed)
+			seq, hash, err := stellar.SendXLMCreateAccount(input.PublicKey, float64(1.50001), h.apiContext.Config.XlmLoanerSeed)
 			if err != nil {
 				GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
 				return
@@ -980,11 +981,11 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 
 		}
 		activatedData := map[string]interface{}{
-			"PublicKey":     input.PublicKey,
-			"EnSecretKey":   input.EnSecretKey,
-			"SecretKeySalt": input.Salt,
-			"IsLoan":        true,
-			"ActivatedAt":   time.Now().Unix(),
+			"PublicKey":      input.PublicKey,
+			"EnSecretKey":    input.EnSecretKey,
+			"SecretKeySalt":  input.Salt,
+			"LoanPaidStatus": 1,
+			"ActivatedAt":    time.Now().Unix(),
 			// "Setting": map[string]interface{}{
 			// 	"IpConfirm": true, "MulSignature": true, "AppGeneral": true, "AppWallet": true, "AppAlgo": true, "MailGeneral": true, "MailWallet": true, "MailAlgo": true,
 			// },
@@ -1611,17 +1612,16 @@ func (h UserHandler) TxVerify() gin.HandlerFunc {
 			return
 		}
 
-		log.Println(request)
-
 		uid := c.GetString(UID)
 		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
 		url := h.apiContext.Config.HorizonUrl + fmt.Sprintf("ledgers/%d/payments", request.Ledger)
+		log.Println("url payment:", url)
 		_, _, amount, err := GetLedgerInfo(url, userInfo["PublicKey"].(string), h.apiContext.Config.XlmLoanerAddress)
 		if err != nil {
 			log.Printf("Can not query ledger %d. Error: %v. Will re-try\n", request.Ledger, err)
 			// re-try
 			for i := 0; i < 3; i++ {
-				time.Sleep(500)
+				time.Sleep(1000)
 				_, _, amount, err = GetLedgerInfo(url, userInfo["PublicKey"].(string), h.apiContext.Config.XlmLoanerAddress)
 				if err == nil {
 					break
@@ -1636,9 +1636,9 @@ func (h UserHandler) TxVerify() gin.HandlerFunc {
 		log.Println("amount:", amount)
 		switch request.Action {
 		case "payoff":
-			if amount == 1.5 {
+			if amount >= 1.5 {
 				// Set IsLoan to true
-				_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{"LoanPaid": true}, firestore.MergeAll)
+				_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{"LoanPaidStatus": 2}, firestore.MergeAll)
 				if err != nil {
 					log.Printf(uid+": Set IsLoand false error %v\n", err)
 					GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
