@@ -813,7 +813,7 @@ func (h UserHandler) SendEmailResetPwd() gin.HandlerFunc {
 			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not encrypt token")
 			return
 		}
-		err = mail.SendMail(input.Email, input.Name, ResetPasswordSub, ResetPassword, encodeStr, h.apiContext.Config.Host, nil)
+		err = mail.SendMail(input.Email, userInfo["Name"].(string), ResetPasswordSub, ResetPassword, encodeStr, h.apiContext.Config.Host, nil)
 		if err != nil {
 			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not send reset password email right now")
 			return
@@ -899,6 +899,15 @@ func (h UserHandler) ResetPassword() gin.HandlerFunc {
 			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not register right now")
 			return
 		}
+		// Send mail reset password successfully
+		go func() {
+			mail.SendMailResetPwdSuccess(userInfo["Email"].(string), userInfo["Name"].(string), "GRAYLL | Reset Password Successfully",
+				[]string{
+					"Your password has been reset successfully.",
+					"If you didn’t request and approve your GRAYLL account password reset, please contact us immediately!",
+					"support@grayll.io",
+				})
+		}()
 		GinRespond(c, http.StatusOK, SUCCESS, "")
 	}
 }
@@ -1020,6 +1029,42 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 			// }
 
 		}()
+
+		GinRespond(c, http.StatusOK, SUCCESS, "")
+	}
+}
+
+func (h UserHandler) SaveUserData() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var input struct {
+			TotalXLM    float64 `json:"totalXLM"`
+			TotalGRX   float64 `json:"totalGRX"`
+			OpenOrders int `json:"openOrders"`
+		}
+		err := c.BindJSON(&input)
+		if err != nil {
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Can not parse json input data")
+			return
+		}
+
+		uid := c.GetString(UID)
+		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+		if userInfo == nil {
+			GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Invalid user name or password")
+			return
+		}
+
+		accountData := map[string]interface{}{
+			"TotalXLM":      input.TotalXLM,
+			"TotalGRX":    input.TotalGRX,
+			"OpenOrders":  input.OpenOrders,
+		}
+		_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), accountData, firestore.MergeAll)
+		if err != nil {
+			log.Printf(uid+": Set accountData error %v\n", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
+			return
+		}
 
 		GinRespond(c, http.StatusOK, SUCCESS, "")
 	}

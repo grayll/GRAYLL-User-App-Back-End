@@ -84,7 +84,7 @@ func (email *Email) GenResetPassword(firstName, url string, expiredInDays int) (
 			},
 			Actions: []hermes.Action{
 				{
-					Instructions: "Please click here to verify your email and get started.",
+					Instructions: "You have requested to reset your password. Please click here to initiate your password reset.",
 					Button: hermes.Button{
 						Color: "#40278C", // Optional action button color
 						Text:  "RESET PASSWORD",
@@ -93,9 +93,8 @@ func (email *Email) GenResetPassword(firstName, url string, expiredInDays int) (
 				},
 			},
 			Outros: []string{
-				"Once the account is activated, you can sign in and add Stellar Lumens (XLM) and GRAYLL GRX to your account",
 				"Please notice that account activation link expires at " + timeExpire,
-				"If you didn’t create a GRAYLL account, you can ignore this email.",
+				"If you didn’t request to reset your GRAYLL account password, you may ignore this email.",
 			},
 			Signature: "With gratitude",
 			Greeting:  "Hello",

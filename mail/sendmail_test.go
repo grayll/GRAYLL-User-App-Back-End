@@ -34,6 +34,6 @@ func TestSendMail(t *testing.T) {
 	// 	log.Fatalln(err)
 	// }
 
-	SendMail("huynt580@gmail.com", "Huy", "Confirm your registration with GRAYLL",
-		"verifyEmail", "tAb8gxCCVdWLUWGBgARPIoOoj3D0Ds9kAwu1dJQYBKwAAAF")
+	// SendMail("huynt580@gmail.com", "Huy", "Confirm your registration with GRAYLL",
+	// 	"verifyEmail", "tAb8gxCCVdWLUWGBgARPIoOoj3D0Ds9kAwu1dJQYBKwAAAF")
 }
