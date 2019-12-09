@@ -90,7 +90,7 @@ func VerifyRecapchaToken(w http.ResponseWriter, r *http.Request) {
 
 	token, err := ExtractToken(r)
 	if err != nil {
-		fmt.Printf("VerifyRecapchaToken: Authorization header does not contain Bearer\n", err)
+		fmt.Printf("VerifyRecapchaToken: Authorization header does not contain Bearer %v\n", err)
 		respData.Success = false
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(respData)

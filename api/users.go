@@ -252,7 +252,7 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		if _, ok := userInfo["Subs"]; ok {
 			userInfo["Subs"] = true
 		}
-		tokenStr, err := h.apiContext.Jwt.GenToken(uid, 60)
+		tokenStr, err := h.apiContext.Jwt.GenToken(uid, 24*60)
 
 		c.JSON(http.StatusOK, gin.H{
 			"errCode": SUCCESS, "user": userInfo, "token": tokenStr, "tokenExpiredTime": (time.Now().Unix() + int64(24*60*60-5)),
@@ -1037,9 +1037,9 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 func (h UserHandler) SaveUserData() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input struct {
-			TotalXLM    float64 `json:"totalXLM"`
+			TotalXLM   float64 `json:"totalXLM"`
 			TotalGRX   float64 `json:"totalGRX"`
-			OpenOrders int `json:"openOrders"`
+			OpenOrders int     `json:"openOrders"`
 		}
 		err := c.BindJSON(&input)
 		if err != nil {
@@ -1055,9 +1055,9 @@ func (h UserHandler) SaveUserData() gin.HandlerFunc {
 		}
 
 		accountData := map[string]interface{}{
-			"TotalXLM":      input.TotalXLM,
-			"TotalGRX":    input.TotalGRX,
-			"OpenOrders":  input.OpenOrders,
+			"TotalXLM":   input.TotalXLM,
+			"TotalGRX":   input.TotalGRX,
+			"OpenOrders": input.OpenOrders,
 		}
 		_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), accountData, firestore.MergeAll)
 		if err != nil {
