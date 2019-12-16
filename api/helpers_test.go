@@ -30,3 +30,13 @@ func TestParsePayment(t *testing.T) {
 		}
 	}
 }
+
+func TestParsePriceGRX(t *testing.T) {
+	url := "https://horizon.stellar.org/trades?base_asset_type=native&counter_asset_type=credit_alphanum4&counter_asset_code=GRX&counter_asset_issuer=GAQQZMUNB7UCL2SXHU6H7RZVNFL6PI4YXLPJNBXMOZXB2LOQ7LODH333&order=desc&limit=1"
+	n, d, err := GetPrice(url)
+	log.Println(n, d, err, d/n)
+
+	url = "https://horizon.stellar.org/trades?base_asset_type=native&counter_asset_type=credit_alphanum4&counter_asset_code=USD&counter_asset_issuer=GDUKMGUGDZQK6YHYA5Z6AY2G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5YLEX&order=desc&limit=1"
+	n, d, err = GetPrice(url)
+	log.Println(n, d, err, n/d)
+}

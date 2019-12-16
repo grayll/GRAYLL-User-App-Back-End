@@ -27,6 +27,7 @@ require (
 	github.com/sendgrid/rest v2.4.1+incompatible // indirect
 	github.com/sendgrid/sendgrid-go v3.5.0+incompatible
 	github.com/stellar/go v0.0.0-20190920224012-d72ea298f1e9
+	go.uber.org/goleak v0.10.0 // indirect
 	golang.org/x/crypto v0.0.0-20190621222207-cc06ce4a13d4
 	google.golang.org/api v0.14.0
 )

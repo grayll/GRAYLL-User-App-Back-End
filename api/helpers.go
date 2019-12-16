@@ -25,6 +25,10 @@ func GinRespond(c *gin.Context, status int, errCode, msg string) {
 	c.Abort()
 }
 
+type Price struct {
+	N string `json:"n"`
+	D string `json:"d"`
+}
 type Embedded struct {
 	Records []map[string]interface{} `json:"records"`
 }
@@ -85,6 +89,38 @@ func GetLedgerInfo(url, publicKey, xlmLoaner string) (string, string, float64, e
 		}
 	}
 	return "", "", 0, errors.New("Invalid ledger Id")
+}
+
+func GetPrice(url string) (float64, float64, error) {
+	embs, err := ParseLedgerData(url)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if len(embs.Embed.Records) > 0 {
+		if price, ok := embs.Embed.Records[0]["price"]; ok {
+			log.Println("price:", price)
+			prices := price.(map[string]interface{})
+			n, ok1 := prices["n"]
+			d, ok2 := prices["d"]
+			if ok1 && ok2 {
+				return n.(float64), d.(float64), nil
+			}
+		}
+	}
+	return 0, 0, errors.New("price not found")
+}
+
+func GetPrices() {
+	//grx xlm
+	url := "https://horizon.stellar.org/trades?base_asset_type=native&counter_asset_type=credit_alphanum4&counter_asset_code=GRX&counter_asset_issuer=GAQQZMUNB7UCL2SXHU6H7RZVNFL6PI4YXLPJNBXMOZXB2LOQ7LODH333&order=desc&limit=1"
+	n, d, err := GetPrice(url)
+	log.Println(n, d, err, d/n)
+
+	//xlm usd
+	url = "https://horizon.stellar.org/trades?base_asset_type=native&counter_asset_type=credit_alphanum4&counter_asset_code=USD&counter_asset_issuer=GDUKMGUGDZQK6YHYA5Z6AY2G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5YLEX&order=desc&limit=1"
+	n, d, err = GetPrice(url)
+	log.Println(n, d, err, n/d)
 }
 
 func randStr(strSize int, randType string) string {

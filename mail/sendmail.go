@@ -154,7 +154,8 @@ func (email *Email) GenConfirmIp(firstName, url string, expiredInDays int, mores
 				// 	Instructions: "We have detected a successful login attempt to your account from an unused IP address.",
 				// },
 				{
-					Instructions: "We have detected a successful login attempt to your account from an unrecognised IP address. Please click here to confirm the IP.",
+					Instructions: `Your IP address was not recognised by the system, it might be that you have not used it for a certain period of time.
+					Before accessing your account, please confirm your IP address by clicking the button below.`,
 					Button: hermes.Button{
 						Color: "#40278C", // Optional action button color
 						Text:  "CONFIRM IP",

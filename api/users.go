@@ -19,6 +19,7 @@ import (
 	"bitbucket.org/grayll/grayll.io-user-app-back-end/models"
 	"bitbucket.org/grayll/grayll.io-user-app-back-end/utils"
 	"cloud.google.com/go/firestore"
+	"github.com/SherClockHolmes/webpush-go"
 	"github.com/asaskevich/govalidator"
 	"github.com/avct/uasurfer"
 	"github.com/dgryski/dgoogauth"
@@ -108,41 +109,7 @@ func (h UserHandler) Login() gin.HandlerFunc {
 			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not parse user data")
 			return
 		}
-		// ipConfirm := setting["IpConfirm"].(bool)
-		// if currentIp != userInfo["Ip"].(string) && ipConfirm {
-		// 	ipTemp, ok := userInfo["IpTemp"].(string)
-		// 	if !ok || (ok && ipTemp == "") {
-		// 		// Send confirm Ip mail
-		// 		log.Println(`!ok || (ok && ipTemp != "")`)
-		// 		encodeStr := utils.EncryptItem(h.apiContext.Jwt.PublicKey, currentIp+"?"+uid)
-		// 		if encodeStr == "" {
-		// 			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not login right now. Please try again later.")
-		// 			return
-		// 		}
-		// 		city, country := utils.GetCityCountry("http://www.geoplugin.net/json.gp?ip=" + currentIp)
-		// 		mores := map[string]string{
-		// 			"loginTime": time.Now().Format("Mon, 02 Jan 2006 15:04:05 UTC"),
-		// 			"ip":        currentIp,
-		// 			"agent":     c.Request.UserAgent(),
-		// 			"city":      city,
-		// 			"country":   country,
-		// 		}
-		// 		err = mail.SendMail(userInfo["Email"].(string), userInfo["Name"].(string), ConfirmIpSub, ConfirmIp, encodeStr, h.apiContext.Config.Host, mores)
-		// 		if err != nil {
-		// 			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not login right now. Please try again later.")
-		// 			return
-		// 		}
-		// 		GinRespond(c, http.StatusOK, IP_CONFIRM, "Need to confirm Ip before login")
-		// 		return
-		// 	} else if ok && currentIp == ipTemp {
-		// 		log.Println(`ok && ipTemp == currentIp. Set IpTemp ""`)
-		// 		_, err := h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{"IpTemp": ""}, firestore.MergeAll)
-		// 		if err != nil {
-		// 			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not update temp ip")
-		// 			return
-		// 		}
-		// 	}
-		// }
+
 		city, country := utils.GetCityCountry("http://www.geoplugin.net/json.gp?ip=" + currentIp)
 		ua := uasurfer.Parse(c.Request.UserAgent())
 		//log.Println("ua:", ua)
@@ -185,6 +152,61 @@ func (h UserHandler) Login() gin.HandlerFunc {
 						return
 					}
 					GinRespond(c, http.StatusOK, IP_CONFIRM, "Need to confirm Ip before login")
+
+					// Send app and push notices
+					title := "GRAYLL | IP Address Verification"
+					body := fmt.Sprintf("This IP address %s is unknown! An IP address verification link has been sent to your email.", currentIp)
+					notice := map[string]interface{}{
+						"type":    "general",
+						"title":   title,
+						"isRead":  false,
+						"body":    body,
+						"time":    time.Now().Unix(),
+						"vibrate": []int32{100, 50, 100},
+						"icon":    "https://app.grayll.io/favicon.ico",
+						"data": map[string]interface{}{
+							"url": h.apiContext.Config.Host + "/notifications/overview",
+						},
+					}
+
+					//ctx := context.Background()
+					log.Println("Start push notice")
+					go func() {
+						subs, err := h.apiContext.Cache.GetUserSubs(uid)
+						if err == nil && subs != "" {
+							//log.Println("subs: ", subs)
+							noticeData := map[string]interface{}{
+								"notification": notice,
+							}
+							webpushSub := webpush.Subscription{}
+							err = json.Unmarshal([]byte(subs), &webpushSub)
+							if err != nil {
+								log.Println("Unmarshal subscription from redis error: ", err)
+								return
+							}
+							err = PushNotice(noticeData, &webpushSub)
+							if err != nil {
+								log.Println("PushNotice error: ", err)
+								//return
+							}
+						}
+					}()
+
+					// Save to firestore
+					docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
+					_, err = docRef.Set(ctx, notice)
+					if err != nil {
+						log.Println("SaveNotice error: ", err)
+						return
+					}
+
+					_, err = h.apiContext.Store.Doc("users/"+uid).Update(ctx, []firestore.Update{
+						{Path: "UrGeneral", Value: firestore.Increment(1)},
+					})
+					if err != nil {
+						log.Println("SaveNotice update error: ", err)
+						//return
+					}
 					res <- 1
 				}
 			}
@@ -211,8 +233,7 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		if val == 1 {
 			return
 		}
-		//userInfo["Uid"] = uid
-		//if _, ok := userInfo["LoginTime"]; !ok {
+
 		// First login time, send mail notice
 		go func() {
 			if city == "" && country == "" {
@@ -327,26 +348,89 @@ func (h UserHandler) Register() gin.HandlerFunc {
 	}
 }
 
+//cities := client.Collection("cities")
+// Get the first 25 cities, ordered by population.
+// firstPage := cities.OrderBy("population", firestore.Asc).Limit(25).Documents(ctx)
+// docs, err := firstPage.GetAll()
+// if err != nil {
+//         return err
+// }
+//
+// // Get the last document.
+// lastDoc := docs[len(docs)-1]
+//
+// // Construct a new query to get the next 25 cities.
+// secondPage := cities.OrderBy("population", firestore.Asc).
+//         StartAfter(lastDoc.Data()["population"]).
+//         Limit(25)
+
 func (h UserHandler) GetNotices() gin.HandlerFunc {
 	return func(c *gin.Context) {
+
+		var input struct {
+			Limit      int    `json:"limit"`
+			Cursor     int64  `json:"cursor"`
+			NoticeType string `type:"type"`
+		}
+
+		err := c.BindJSON(&input)
+		if err != nil {
+			log.Println("BindJSON err:", err)
+			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Can not parse json input")
+			return
+		}
+		if input.NoticeType != "all" && input.NoticeType != "wallet" && input.NoticeType != "algo" && input.NoticeType != "general" {
+			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "invalid notice type")
+			return
+		}
+		if input.Limit >= 200 {
+			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "invalid limit param")
+			return
+		}
 		uid := c.GetString("Uid")
 		userInfo, _ := GetUserByField(h.apiContext.Store, "Uid", uid)
 		if userInfo == nil {
 			GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Invalid user name or password")
 			return
 		}
-		notices := make([]map[string]interface{}, 0)
-		it := h.apiContext.Store.Collection("notices/users/"+uid).Limit(200).OrderBy("time", firestore.Desc).Documents(context.Background())
-		for {
-			doc, err := it.Next()
-			if err == iterator.Done {
-				break
-			}
-			if err != nil {
-				log.Println("err reading db: ", err)
-			}
 
-			data := map[string]interface{}{
+		switch input.NoticeType {
+		case "all":
+			wallets := h.getDetailNotice("wallet", input.Limit, input.Cursor, uid)
+			algos := h.getDetailNotice("algo", input.Limit, input.Cursor, uid)
+			generals := h.getDetailNotice("general", input.Limit, input.Cursor, uid)
+			c.JSON(http.StatusOK, gin.H{
+				"errCode": SUCCESS, "wallets": wallets, "algos": algos, "generals": generals,
+			})
+		default:
+			notices := h.getDetailNotice(input.NoticeType, input.Limit, input.Cursor, uid)
+			c.JSON(http.StatusOK, gin.H{
+				"errCode": SUCCESS, "notices": notices,
+			})
+		}
+
+	}
+}
+
+func (h UserHandler) getDetailNotice(noticeType string, limit int, cursor int64, uid string) []map[string]interface{} {
+	notices := make([]map[string]interface{}, 0)
+	var it *firestore.DocumentIterator
+	if cursor > 0 {
+		it = h.apiContext.Store.Collection("notices/"+noticeType+"/"+uid).Limit(limit).StartAfter(cursor).OrderBy("time", firestore.Desc).Documents(context.Background())
+	} else {
+		it = h.apiContext.Store.Collection("notices/"+noticeType+"/"+uid).Limit(limit).OrderBy("time", firestore.Desc).Documents(context.Background())
+	}
+	for {
+		doc, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			log.Println("err reading db: ", err)
+		}
+		var data map[string]interface{}
+		if noticeType == "wallet" || noticeType == "algo" {
+			data = map[string]interface{}{
 				"id":     doc.Ref.ID,
 				"type":   doc.Data()["type"].(string),
 				"title":  doc.Data()["title"].(string),
@@ -355,13 +439,19 @@ func (h UserHandler) GetNotices() gin.HandlerFunc {
 				"txId":   doc.Data()["txId"].(string),
 				"isRead": doc.Data()["isRead"].(bool),
 			}
-			notices = append(notices, data)
+		} else {
+			data = map[string]interface{}{
+				"id":     doc.Ref.ID,
+				"type":   doc.Data()["type"].(string),
+				"title":  doc.Data()["title"].(string),
+				"body":   doc.Data()["body"].(string),
+				"time":   doc.Data()["time"].(int64),
+				"isRead": doc.Data()["isRead"].(bool),
+			}
 		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"errCode": SUCCESS, "notices": notices,
-		})
+		notices = append(notices, data)
 	}
+	return notices
 }
 
 func (h UserHandler) ValidatePhone() gin.HandlerFunc {
@@ -449,7 +539,7 @@ func (h UserHandler) UpdateReadNotices() gin.HandlerFunc {
 		ctx := context.Background()
 		if len(input.WalletIds) > 0 {
 			for _, id := range input.WalletIds {
-				h.apiContext.Store.Doc("notices/users/"+uid+"/"+id).Set(ctx, map[string]interface{}{
+				h.apiContext.Store.Doc("notices/wallet/"+uid+"/"+id).Set(ctx, map[string]interface{}{
 					"isRead": true,
 				}, firestore.MergeAll)
 			}
@@ -464,7 +554,7 @@ func (h UserHandler) UpdateReadNotices() gin.HandlerFunc {
 		}
 		if len(input.AlgoIds) > 0 {
 			for _, id := range input.WalletIds {
-				h.apiContext.Store.Doc("notices/users/"+uid+"/"+id).Set(ctx, map[string]interface{}{
+				h.apiContext.Store.Doc("notices/algo/"+uid+"/"+id).Set(ctx, map[string]interface{}{
 					"isRead": true,
 				}, firestore.MergeAll)
 			}
@@ -479,7 +569,7 @@ func (h UserHandler) UpdateReadNotices() gin.HandlerFunc {
 		}
 		if len(input.GeneralIds) > 0 {
 			for _, id := range input.GeneralIds {
-				h.apiContext.Store.Doc("notices/users/"+uid+"/"+id).Set(ctx, map[string]interface{}{
+				h.apiContext.Store.Doc("notices/general/"+uid+"/"+id).Set(ctx, map[string]interface{}{
 					"isRead": true,
 				}, firestore.MergeAll)
 			}
@@ -1163,6 +1253,11 @@ func (h UserHandler) GetFieldInfo() gin.HandlerFunc {
 				res["isloan"] = false
 			}
 		}
+		if _, ok := input["keyInfo"]; ok {
+			res["EnSecretKey"] = userInfo["EnSecretKey"]
+			res["SecretKeySalt"] = userInfo["SecretKeySalt"]
+			res["LoanPaidStatus"] = userInfo["LoanPaidStatus"]
+		}
 		res["errCode"] = SUCCESS
 		c.JSON(http.StatusOK, res)
 	}
@@ -1182,7 +1277,7 @@ func (h UserHandler) SendRevealSecretToken() gin.HandlerFunc {
 		// Set token to database
 		_, err := h.apiContext.Store.Doc("resetpwd/"+uid).Set(context.Background(), map[string]interface{}{
 			"reavealtoken": revealToken,
-			"expire":       time.Now().Unix() + int64(5*60),
+			"expire":       time.Now().Unix() + int64(10*60),
 		}, firestore.MergeAll)
 
 		if err != nil {
