@@ -24,7 +24,7 @@ func main() {
 	}
 	var store *firestore.Client
 
-	config := parseConfig("config1.json")
+	config := parseConfig("config.json")
 	asset := assets.Asset{Code: config.AssetCode, IssuerAddress: config.IssuerAddress}
 
 	spew.Dump(config)
@@ -118,6 +118,8 @@ func SetupRouter(appContext *api.ApiContext) *gin.Engine {
 		v1.POST("/users/sendRevealSecretToken", userHandler.SendRevealSecretToken())
 		v1.POST("/users/validatePhone", userHandler.ValidatePhone())
 		v1.POST("/users/saveUserData", userHandler.SaveUserData())
+
+		v1.POST("/users/getUserInfo", userHandler.GetUserInfo())
 
 		v1.POST("/phones/sendcode", phones.SendSms())
 		v1.POST("/phones/verifycode", phones.VerifyCode())

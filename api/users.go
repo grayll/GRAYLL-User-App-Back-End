@@ -274,9 +274,28 @@ func (h UserHandler) Login() gin.HandlerFunc {
 			userInfo["Subs"] = true
 		}
 		tokenStr, err := h.apiContext.Jwt.GenToken(uid, 24*60)
-
+		userBasicInfo := make(map[string]interface{})
+		userBasicInfo["Tfa"] = false
+		if _, ok := userInfo["Tfa"]; ok {
+			tfaData := userInfo["Tfa"].(map[string]interface{})
+			if tfaEnable, ok := tfaData["Enable"]; ok {
+				userBasicInfo["Tfa"] = tfaEnable.(bool)
+				if tfaEnable.(bool) {
+					if _, ok := tfaData["Expire"]; ok {
+						userBasicInfo["Expire"] = tfaData["Expire"]
+					} else {
+						userBasicInfo["Expire"] = 0
+					}
+				}
+			}
+		}
+		userBasicInfo["LoanPaidStatus"] = userInfo["LoanPaidStatus"].(int64)
+		userBasicInfo["EnSecretKey"] = userInfo["EnSecretKey"]
+		userBasicInfo["SecretKeySalt"] = userInfo["SecretKeySalt"]
+		userBasicInfo["Setting"] = setting
+		userBasicInfo["Uid"] = uid
 		c.JSON(http.StatusOK, gin.H{
-			"errCode": SUCCESS, "user": userInfo, "token": tokenStr, "tokenExpiredTime": (time.Now().Unix() + int64(24*60*60-5)),
+			"errCode": SUCCESS, "user": userInfo, "userBasicInfo": userBasicInfo, "token": tokenStr, "tokenExpiredTime": (time.Now().Unix() + int64(24*60*60-5)),
 		})
 	}
 }
@@ -310,9 +329,10 @@ func (h UserHandler) Register() gin.HandlerFunc {
 		// Get IP of user at time registration
 		//input.Token = ""
 		input.Federation = input.Email + "*grayll.io"
+		input.LoanPaidStatus = 0
 		input.Ip = utils.RealIP(c.Request)
 		input.CreatedAt = time.Now().Unix()
-		input.Setting = models.Settings{IpConfirm: true, MulSignature: true, AppAlgo: true, AppWallet: true, AppGeneral: true,
+		input.Setting = models.Settings{IpConfirm: true, MulSignature: false, AppAlgo: true, AppWallet: true, AppGeneral: true,
 			MailAlgo: true, MailWallet: true, MailGeneral: true}
 		hash, err := utils.DerivePassphrase(input.HashPassword, 32)
 		if err != nil {
@@ -1104,7 +1124,7 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 			}
 
 			// Set setting cache
-			data := map[string]bool{"IpConfirm": true, "MulSignature": true, "AppGeneral": true, "AppWallet": true,
+			data := map[string]bool{"IpConfirm": true, "MulSignature": false, "AppGeneral": true, "AppWallet": true,
 				"AppAlgo": true, "MailGeneral": true, "MailWallet": true, "MailAlgo": true}
 			for k, v := range data {
 				_, err = h.apiContext.Cache.SetNotice(uid, k, v)
@@ -1246,11 +1266,11 @@ func (h UserHandler) GetFieldInfo() gin.HandlerFunc {
 				}
 			}
 		}
-		if _, ok := input["isloan"]; ok {
-			if value, ok := userInfo["IsLoan"]; ok {
-				res["isloan"] = value.(bool)
+		if _, ok := input["LoanPaidStatus"]; ok {
+			if value, ok := userInfo["LoanPaidStatus"]; ok {
+				res["isloan"] = value.(int)
 			} else {
-				res["isloan"] = false
+				res["isloan"] = 0
 			}
 		}
 		if _, ok := input["keyInfo"]; ok {
@@ -1259,6 +1279,48 @@ func (h UserHandler) GetFieldInfo() gin.HandlerFunc {
 			res["LoanPaidStatus"] = userInfo["LoanPaidStatus"]
 		}
 		res["errCode"] = SUCCESS
+		c.JSON(http.StatusOK, res)
+	}
+}
+
+func (h UserHandler) GetUserInfo() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		uid := c.GetString(UID)
+		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+		if userInfo == nil {
+			GinRespond(c, http.StatusOK, EMAIL_NOT_EXIST, "Account does not exist.")
+			return
+		}
+		res := make(map[string]interface{})
+		res["Tfa"] = false
+		if _, ok := userInfo["Tfa"]; ok {
+			tfaData := userInfo["Tfa"].(map[string]interface{})
+			if tfaEnable, ok := tfaData["Enable"]; ok {
+				res["Tfa"] = tfaEnable.(bool)
+				if tfaEnable.(bool) {
+					//res["secret"] = tfaData["Secret"]
+					if _, ok := tfaData["Expire"]; ok {
+						res["Expire"] = tfaData["Expire"]
+					} else {
+						res["Expire"] = 0
+					}
+				}
+			}
+		}
+		// if value, ok := userInfo["LoanPaidStatus"]; ok {
+		//
+		// } else {
+		// 	res["LoanPaidStatus"] = 0
+		// }
+		res["LoanPaidStatus"] = userInfo["LoanPaidStatus"].(int64)
+		setting := userInfo["Setting"].(map[string]interface{})
+		res["EnSecretKey"] = userInfo["EnSecretKey"]
+		res["SecretKeySalt"] = userInfo["SecretKeySalt"]
+		res["Setting"] = setting
+		res["Uid"] = uid
+		res["errCode"] = SUCCESS
+
 		c.JSON(http.StatusOK, res)
 	}
 }

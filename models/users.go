@@ -49,17 +49,17 @@ type UserInfo struct {
 	//Token string `json:"Token,omitempty"`
 	//Tfa                Tfa     `json:"Tfa"`
 	// Number unread notice wallet,algo and general
-	UrWallet     int      `json:"UrWallet"`
-	UrAlgo       int      `json:"UrAlgo"`
-	UrGeneral    int      `json:"UrGeneral"`
-	HashPassword string   `json:"HashPassword"`
-	Setting      Settings `json:"Setting"`
-	Ip           string   `json:"Ip,omitempty"`
-	CreatedAt    int64    `json:"CreatedAt,omitempty"`
-	PublicKey    string   `json:"PublicKey,omitempty""`
-	//EncryptedSecretKey string   `json:"EncryptedSecretKey,omitempty""`
+	UrWallet       int      `json:"UrWallet"`
+	UrAlgo         int      `json:"UrAlgo"`
+	UrGeneral      int      `json:"UrGeneral"`
+	HashPassword   string   `json:"HashPassword"`
+	Setting        Settings `json:"Setting"`
+	Ip             string   `json:"Ip,omitempty"`
+	CreatedAt      int64    `json:"CreatedAt,omitempty"`
+	PublicKey      string   `json:"PublicKey,omitempty"`
+	LoanPaidStatus int      `json:"LoanPaidStatus,omitempty"`
 	//SecretKeySalt      string   `json:"SecretKeySalt,omitempty""`
-	Federation string `json:"Federation,omitempty""`
+	Federation string `json:"Federation,omitempty"`
 	IsVerified bool   `json:"IsVerified,omitempty"`
 }
 type UserLogin struct {
