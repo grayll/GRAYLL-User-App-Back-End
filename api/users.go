@@ -289,11 +289,18 @@ func (h UserHandler) Login() gin.HandlerFunc {
 				}
 			}
 		}
+
 		userBasicInfo["LoanPaidStatus"] = userInfo["LoanPaidStatus"].(int64)
 		userBasicInfo["EnSecretKey"] = userInfo["EnSecretKey"]
 		userBasicInfo["SecretKeySalt"] = userInfo["SecretKeySalt"]
+		userBasicInfo["PublicKey"] = userInfo["PublicKey"]
 		userBasicInfo["Setting"] = setting
 		userBasicInfo["Uid"] = uid
+
+		delete(userInfo, "LoanPaidStatus")
+		delete(userInfo, "EnSecretKey")
+		delete(userInfo, "SecretKeySalt")
+		delete(userInfo, "Setting")
 		c.JSON(http.StatusOK, gin.H{
 			"errCode": SUCCESS, "user": userInfo, "userBasicInfo": userBasicInfo, "token": tokenStr, "tokenExpiredTime": (time.Now().Unix() + int64(24*60*60-5)),
 		})
