@@ -288,6 +288,8 @@ func (h UserHandler) Login() gin.HandlerFunc {
 					}
 				}
 			}
+		} else {
+			userBasicInfo["Expire"] = 0
 		}
 
 		userBasicInfo["LoanPaidStatus"] = userInfo["LoanPaidStatus"].(int64)
@@ -1327,7 +1329,7 @@ func (h UserHandler) GetUserInfo() gin.HandlerFunc {
 		res["Setting"] = setting
 		res["Uid"] = uid
 		res["errCode"] = SUCCESS
-
+		res["PublicKey"] = userInfo["PublicKey"]
 		c.JSON(http.StatusOK, res)
 	}
 }

@@ -72,7 +72,7 @@ func SetupRouter(appContext *api.ApiContext) *gin.Engine {
 		MaxAge: 12 * time.Hour,
 	}))
 	//router.Use(cors.Default())
-	//router.Use(gin.Recovery())
+	router.Use(gin.Recovery())
 
 	//productHandler := api.NewProductHandle(store)
 	userHandler := api.NewUserHandler(appContext)
