@@ -29,6 +29,10 @@ type Price struct {
 	N string `json:"n"`
 	D string `json:"d"`
 }
+type PriceTime struct {
+	P   float64 `json:"p"`
+	UTS int64   `json:"uts"`
+}
 type Embedded struct {
 	Records []map[string]interface{} `json:"records"`
 }
@@ -90,6 +94,33 @@ func GetLedgerInfo(url, publicKey, xlmLoaner string) (string, string, float64, e
 	}
 	return "", "", 0, errors.New("Invalid ledger Id")
 }
+
+//
+// func GetPriceData(record map[string]interface{}, asset string) (PriceTime, error) {
+// 	var n, d float64
+// 	var err error
+// 	if price, ok := record["price"]; ok {
+// 		log.Println("price:", price)
+// 		prices := price.(map[string]interface{})
+// 		n1, ok1 := prices["n"]
+// 		d1, ok2 := prices["d"]
+// 		if ok1 && ok2 {
+// 			n = n1.(float64)
+// 			d = d1.(float64)
+// 		}
+// 	}
+// 	var uts time.Time
+// 	if closeTime, ok := record["ledger_close_time"]; ok {
+// 		ts := closeTime.(string)
+// 		uts, err = time.Parse("2006-01-02T15:04:05-0700", ts)
+// 	}
+// 	if asset == "xlm" {
+// 		return PriceTime{P: n / d, UTS: uts.Unix()}, nil
+// 	} else {
+// 		return PriceTime{P: d / n, UTS: uts.Unix()}, nil
+// 	}
+//
+// }
 
 func GetPrice(url string) (float64, float64, error) {
 	embs, err := ParseLedgerData(url)

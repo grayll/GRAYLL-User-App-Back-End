@@ -300,11 +300,22 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		userBasicInfo["Uid"] = uid
 
 		delete(userInfo, "LoanPaidStatus")
+		delete(userInfo, "HashPassword")
 		delete(userInfo, "EnSecretKey")
 		delete(userInfo, "SecretKeySalt")
 		delete(userInfo, "Setting")
 		c.JSON(http.StatusOK, gin.H{
 			"errCode": SUCCESS, "user": userInfo, "userBasicInfo": userBasicInfo, "token": tokenStr, "tokenExpiredTime": (time.Now().Unix() + int64(24*60*60-5)),
+		})
+	}
+}
+
+func (h UserHandler) Renew() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		uid := c.GetString("Uid")
+		tokenStr, _ := h.apiContext.Jwt.GenToken(uid, 24*60)
+		c.JSON(http.StatusOK, gin.H{
+			"errCode": SUCCESS, "token": tokenStr, "tokenExpiredTime": (time.Now().Unix() + int64(24*60*60)),
 		})
 	}
 }

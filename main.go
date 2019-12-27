@@ -99,6 +99,7 @@ func SetupRouter(appContext *api.ApiContext) *gin.Engine {
 	v1.GET("/accounts/federation", userHandler.Federation())
 
 	v1.GET("/warmup", userHandler.Warmup())
+	v1.GET("/checkpw", userHandler.CheckPw())
 
 	// apis needs to authenticate
 	v1.Use(api.Authorize(appContext.Jwt))
@@ -124,6 +125,7 @@ func SetupRouter(appContext *api.ApiContext) *gin.Engine {
 		v1.POST("/users/getUserInfo", userHandler.GetUserInfo())
 		v1.POST("/users/GetFramesData", userHandler.GetFramesData())
 		v1.POST("/users/GetDashBoardInfo", userHandler.GetDashBoardInfo())
+		v1.POST("/users/Renew", userHandler.Renew())
 
 		v1.POST("/phones/sendcode", phones.SendSms())
 		v1.POST("/phones/verifycode", phones.VerifyCode())
