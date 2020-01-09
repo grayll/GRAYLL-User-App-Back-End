@@ -127,6 +127,8 @@ func SetupRouter(appContext *api.ApiContext) *gin.Engine {
 		v1.POST("/users/GetDashBoardInfo", userHandler.GetDashBoardInfo())
 		v1.POST("/users/Renew", userHandler.Renew())
 
+		v1.POST("/users/MakeTransaction", userHandler.MakeTransaction())
+
 		v1.POST("/phones/sendcode", phones.SendSms())
 		v1.POST("/phones/verifycode", phones.VerifyCode())
 

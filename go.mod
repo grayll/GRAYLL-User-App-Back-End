@@ -19,7 +19,7 @@ require (
 	github.com/go-redis/redis v6.15.6+incompatible
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/huyntsgs/hermes v0.0.0-20191119075450-4a9f1c2a64a0
-	github.com/huyntsgs/stellar-service v0.0.0-20191023102121-b668cbd3c0fe
+	github.com/huyntsgs/stellar-service v0.0.0-20200103074558-659b1c3e2c2c
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/jaytaylor/html2text v0.0.0-20190408195923-01ec452cbe43 // indirect
 	github.com/mitchellh/copystructure v1.0.0 // indirect

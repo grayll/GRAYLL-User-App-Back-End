@@ -298,6 +298,35 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		userBasicInfo["PublicKey"] = userInfo["PublicKey"]
 		userBasicInfo["Setting"] = setting
 		userBasicInfo["Uid"] = uid
+		userInfo["Uid"] = uid
+
+		//timeCreated := userInfo["CreatedAt"].(int64)
+		userMeta := map[string]interface{}{"UrWallet": 0, "UrGRY1": 0, "UrGRY2": 0, "UrGRY3": 0, "UrGRZ": 0, "UrGeneral": 0, "OpenOrders": 0, "OpenOrdersGRX": 0, "OpenOrdersXLM": 0, "GRX": 0, "XLM": 0}
+		// set user meta data if account created before 7-Jan-2020
+		snapShot, err := h.apiContext.Store.Doc("users_meta/" + uid).Get(context.Background())
+		if err != nil {
+			log.Println(uid+": Can not get users_meta error %v\n", err)
+			_, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), userMeta)
+			if err != nil {
+				log.Println(uid+": Set users_meta data error %v\n", err)
+			}
+		} else {
+			userMeta = snapShot.Data()
+		}
+		// if timeCreated < 1578380479 {
+		// 	// set user meta data
+		// 	_, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), userMeta)
+		// 	if err != nil {
+		// 		log.Println(uid+": Set users_meta data error %v\n", err)
+		// 	}
+		// } else {
+		// 	snapShot, err := h.apiContext.Store.Doc("users_meta/" + uid).Get(context.Background())
+		// 	if err != nil {
+		// 		log.Println(uid+": Can not get users_meta error %v\n", err)
+		// 	} else {
+		// 		userMeta = snapShot.Data()
+		// 	}
+		// }
 
 		delete(userInfo, "LoanPaidStatus")
 		delete(userInfo, "HashPassword")
@@ -305,7 +334,7 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		delete(userInfo, "SecretKeySalt")
 		delete(userInfo, "Setting")
 		c.JSON(http.StatusOK, gin.H{
-			"errCode": SUCCESS, "user": userInfo, "userBasicInfo": userBasicInfo, "token": tokenStr, "tokenExpiredTime": (time.Now().Unix() + int64(24*60*60-5)),
+			"errCode": SUCCESS, "user": userInfo, "userMeta": userMeta, "userBasicInfo": userBasicInfo, "token": tokenStr, "tokenExpiredTime": (time.Now().Unix() + int64(24*60*60-5)),
 		})
 	}
 }
@@ -584,7 +613,7 @@ func (h UserHandler) UpdateReadNotices() gin.HandlerFunc {
 				}, firestore.MergeAll)
 			}
 			cnt := 0 - len(input.WalletIds)
-			_, err := h.apiContext.Store.Doc("users/"+uid).Update(ctx, []firestore.Update{
+			_, err := h.apiContext.Store.Doc("users_meta/"+uid).Update(ctx, []firestore.Update{
 				{Path: "UrWallet", Value: firestore.Increment(cnt)},
 			})
 			if err != nil {
@@ -599,7 +628,7 @@ func (h UserHandler) UpdateReadNotices() gin.HandlerFunc {
 				}, firestore.MergeAll)
 			}
 			cnt := 0 - len(input.AlgoIds)
-			_, err := h.apiContext.Store.Doc("users/"+uid).Update(ctx, []firestore.Update{
+			_, err := h.apiContext.Store.Doc("users_meta/"+uid).Update(ctx, []firestore.Update{
 				{Path: "UrAlgo", Value: firestore.Increment(cnt)},
 			})
 			if err != nil {
@@ -614,7 +643,7 @@ func (h UserHandler) UpdateReadNotices() gin.HandlerFunc {
 				}, firestore.MergeAll)
 			}
 			cnt := 0 - len(input.GeneralIds)
-			_, err := h.apiContext.Store.Doc("users/"+uid).Update(ctx, []firestore.Update{
+			_, err := h.apiContext.Store.Doc("users_meta/"+uid).Update(ctx, []firestore.Update{
 				{Path: "UrGeneral", Value: firestore.Increment(cnt)},
 			})
 			if err != nil {
@@ -1152,6 +1181,14 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 					log.Printf(uid+": SetNotice cache error %v\n", err)
 				}
 			}
+
+			// set user meta data
+			_, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(),
+				map[string]interface{}{"UrWallet": 0, "UrAlgo": 0, "UrGeneral": 0, "OpenOrders": 0, "OpenOrdersGRX": 0, "OpenOrdersXLM": 0})
+			if err != nil {
+				log.Println(uid+": Set users_meta data error %v\n", err)
+			}
+
 			// _, err = h.apiContext.Cache.SetNotices(uid, "IpConfirm", "1", "MulSignature", "1", "AppGeneral", "1", "AppWallet", "1",
 			// 	"AppAlgo", "1", "MailGeneral", "1", "MailWallet", "1", "MailAlgo", "1")
 			// if err != nil {
@@ -1531,7 +1568,7 @@ func (h UserHandler) VerifyToken() gin.HandlerFunc {
 				return
 			}
 		}
-		output = Output{Valid: true}
+		output = Output{Valid: true, ErrCode: SUCCESS}
 		c.JSON(http.StatusOK, output)
 	}
 }

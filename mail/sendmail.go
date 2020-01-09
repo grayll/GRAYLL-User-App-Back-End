@@ -111,9 +111,15 @@ func (email *Email) GenRandomNumber(firstName, ranstr string) (string, error) {
 			Greeting:  "Dear",
 			Signature: "With gratitude",
 			Outros: []string{
-				fmt.Sprintf(`We have received reveal secret request from your account.
-					Please fill this random number %s on GRAYLL App.`, ranstr),
-				"If this is not your request, please contact us immediately.",
+				fmt.Sprintf(`We have received a Reveal Secret Key request from your account.
+					
+				For security reasons this request and code is valid for 10 minutes.
+
+				Please copy and paste the following code in the form in your GRAYLL App: %s
+
+				If this wasn't you - please contact us immediately!
+
+				support@grayll.io`, ranstr),
 			},
 		},
 	}
