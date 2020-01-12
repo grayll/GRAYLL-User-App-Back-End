@@ -12,7 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"cloud.google.com/go/firestore"
-	"github.com/davecgh/go-spew/spew"
 	stellar "github.com/huyntsgs/stellar-service"
 	"github.com/huyntsgs/stellar-service/assets"
 )
@@ -24,10 +23,10 @@ func main() {
 	}
 	var store *firestore.Client
 
-	config := parseConfig("config.json")
+	config := parseConfig("config1.json")
 	asset := assets.Asset{Code: config.AssetCode, IssuerAddress: config.IssuerAddress}
 
-	spew.Dump(config)
+	//spew.Dump(config)
 
 	if config.IsMainNet {
 		config.IsMainNet = true

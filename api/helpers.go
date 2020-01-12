@@ -130,7 +130,7 @@ func GetPrice(url string) (float64, float64, error) {
 
 	if len(embs.Embed.Records) > 0 {
 		if price, ok := embs.Embed.Records[0]["price"]; ok {
-			log.Println("price:", price)
+			//log.Println("price:", price)
 			prices := price.(map[string]interface{})
 			n, ok1 := prices["n"]
 			d, ok2 := prices["d"]

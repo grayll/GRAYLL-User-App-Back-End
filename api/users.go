@@ -44,6 +44,8 @@ const (
 	ConfirmIp         = "confirmIp"
 	UID               = "Uid"
 	RevealSecretToken = "revealSecretToken"
+	TokeExpiredTime   = 24*60*60 - 3
+	//TokeExpiredTime = 8 * 60
 )
 
 type UserHandler struct {
@@ -213,20 +215,19 @@ func (h UserHandler) Login() gin.HandlerFunc {
 			res <- 0
 		}(res)
 		go func() {
+			h.apiContext.Cache.SetPublicKey(uid, userInfo["PublicKey"].(string))
+			settingFields := []string{"IpConfirm", "MulSignature", "AppGeneral", "AppWallet", "AppAlgo", "MailGeneral", "MailWallet", "MailAlgo"}
+			for _, field := range settingFields {
+				if val, ok := setting[field]; ok {
+					h.apiContext.Cache.SetNotice(uid, field, val.(bool))
+				}
+			}
 			if subs, ok := userInfo["Subs"]; ok {
 				s, err := json.Marshal(subs)
 				if err != nil {
 					log.Println("Can not find parse subs:", err)
 				}
 				h.apiContext.Cache.SetUserSubs(uid, string(s))
-				h.apiContext.Cache.SetPublicKey(uid, userInfo["PublicKey"].(string))
-
-				settingFields := []string{"IpConfirm", "MulSignature", "AppGeneral", "AppWallet", "AppAlgo", "MailGeneral", "MailWallet", "MailAlgo"}
-				for _, field := range settingFields {
-					if val, ok := setting[field]; ok {
-						h.apiContext.Cache.SetNotice(uid, field, val.(bool))
-					}
-				}
 			}
 		}()
 		val := <-res
@@ -301,7 +302,10 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		userInfo["Uid"] = uid
 
 		//timeCreated := userInfo["CreatedAt"].(int64)
-		userMeta := map[string]interface{}{"UrWallet": 0, "UrGRY1": 0, "UrGRY2": 0, "UrGRY3": 0, "UrGRZ": 0, "UrGeneral": 0, "OpenOrders": 0, "OpenOrdersGRX": 0, "OpenOrdersXLM": 0, "GRX": 0, "XLM": 0}
+		//tokeExpTime := time.Now().Unix() + int64(24*60*60-5)
+		tokeExpTime := time.Now().Unix() + TokeExpiredTime
+		userMeta := map[string]interface{}{"UrWallet": 0, "UrGRY1": 0, "UrGRY2": 0, "UrGRY3": 0, "UrGRZ": 0, "UrGeneral": 0, "OpenOrders": 0, "OpenOrdersGRX": 0,
+			"OpenOrdersXLM": 0, "GRX": 0, "XLM": 0, "TokenExpiredTime": tokeExpTime}
 		// set user meta data if account created before 7-Jan-2020
 		snapShot, err := h.apiContext.Store.Doc("users_meta/" + uid).Get(context.Background())
 		if err != nil {
@@ -312,7 +316,9 @@ func (h UserHandler) Login() gin.HandlerFunc {
 			}
 		} else {
 			userMeta = snapShot.Data()
+			h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), map[string]interface{}{"TokenExpiredTime": tokeExpTime}, firestore.MergeAll)
 		}
+
 		// if timeCreated < 1578380479 {
 		// 	// set user meta data
 		// 	_, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), userMeta)
@@ -334,7 +340,7 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		delete(userInfo, "SecretKeySalt")
 		delete(userInfo, "Setting")
 		c.JSON(http.StatusOK, gin.H{
-			"errCode": SUCCESS, "user": userInfo, "userMeta": userMeta, "userBasicInfo": userBasicInfo, "token": tokenStr, "tokenExpiredTime": (time.Now().Unix() + int64(24*60*60-5)),
+			"errCode": SUCCESS, "user": userInfo, "userMeta": userMeta, "userBasicInfo": userBasicInfo, "token": tokenStr, "tokenExpiredTime": tokeExpTime,
 		})
 	}
 }
@@ -343,8 +349,10 @@ func (h UserHandler) Renew() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		uid := c.GetString("Uid")
 		tokenStr, _ := h.apiContext.Jwt.GenToken(uid, 24*60)
+		tokeExpTime := time.Now().Unix() + TokeExpiredTime
+		h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), map[string]interface{}{"TokenExpiredTime": tokeExpTime}, firestore.MergeAll)
 		c.JSON(http.StatusOK, gin.H{
-			"errCode": SUCCESS, "token": tokenStr, "tokenExpiredTime": (time.Now().Unix() + int64(24*60*60)),
+			"errCode": SUCCESS, "token": tokenStr, "tokenExpiredTime": tokeExpTime,
 		})
 	}
 }
@@ -407,6 +415,16 @@ func (h UserHandler) Register() gin.HandlerFunc {
 		err = mail.SendMail(input.Email, input.Name, ConfirmRegistrationSub, VerifyEmail, encodeStr, h.apiContext.Config.Host, nil)
 		if err != nil {
 			_, err = h.apiContext.Store.Doc("users/" + uid).Delete(ctx)
+			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not register right now")
+			return
+		}
+
+		userMeta := map[string]interface{}{"UrWallet": 0, "UrGRY1": 0, "UrGRY2": 0, "UrGRY3": 0, "UrGRZ": 0, "UrGeneral": 0,
+			"OpenOrders": 0, "OpenOrdersGRX": 0, "OpenOrdersXLM": 0, "GRX": 0, "XLM": 0}
+
+		_, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), userMeta)
+		if err != nil {
+			log.Println(uid+": Set users_meta data error %v\n", err)
 			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not register right now")
 			return
 		}
@@ -1106,7 +1124,7 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 		}
 
 		if stellar.IsMainNet {
-			seq, hash, err := stellar.SendXLMCreateAccount(input.PublicKey, float64(1.50001), h.apiContext.Config.XlmLoanerSeed)
+			seq, hash, err := stellar.SendXLMCreateAccount(input.PublicKey, float64(2.00001), h.apiContext.Config.XlmLoanerSeed)
 			if err != nil {
 				GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
 				return
@@ -1183,11 +1201,11 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 			}
 
 			// set user meta data
-			_, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(),
-				map[string]interface{}{"UrWallet": 0, "UrAlgo": 0, "UrGeneral": 0, "OpenOrders": 0, "OpenOrdersGRX": 0, "OpenOrdersXLM": 0})
-			if err != nil {
-				log.Println(uid+": Set users_meta data error %v\n", err)
-			}
+			// _, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(),
+			// 	map[string]interface{}{"UrWallet": 0, "UrAlgo": 0, "UrGeneral": 0, "OpenOrders": 0, "OpenOrdersGRX": 0, "OpenOrdersXLM": 0})
+			// if err != nil {
+			// 	log.Println(uid+": Set users_meta data error %v\n", err)
+			// }
 
 			// _, err = h.apiContext.Cache.SetNotices(uid, "IpConfirm", "1", "MulSignature", "1", "AppGeneral", "1", "AppWallet", "1",
 			// 	"AppAlgo", "1", "MailGeneral", "1", "MailWallet", "1", "MailAlgo", "1")
@@ -1479,6 +1497,9 @@ func (h UserHandler) VerifyRevealSecretToken() gin.HandlerFunc {
 	}
 }
 
+// Expire > 0 is used to update 2FA
+// Expire = -1, then will verify password too
+// Expire = -2 only verify the 2FA code
 func (h UserHandler) VerifyToken() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input struct {
@@ -1523,7 +1544,6 @@ func (h UserHandler) VerifyToken() gin.HandlerFunc {
 		}
 
 		fmt.Printf("input %v\n", input)
-
 		otpc := &dgoogauth.OTPConfig{
 			//Secret:      input.Secret,
 			Secret:      tfa["Secret"].(string),
