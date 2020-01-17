@@ -71,3 +71,16 @@ func (cache *RedisCache) SetNotices(uid string, pairs ...interface{}) (string, e
 func (cache *RedisCache) GetNotice(uid, cacheType string) (string, error) {
 	return cache.client.HGet(uid+UserInfo, cacheType).Result()
 }
+
+func (cache *RedisCache) SetXLMPrice(price float64) (bool, error) {
+	return cache.client.HSet("prices", "xlmP", price).Result()
+}
+func (cache *RedisCache) GetXLMPrice() (string, error) {
+	return cache.client.HGet("prices", "xlmP").Result()
+}
+func (cache *RedisCache) SetGRXPrice(price float64) (bool, error) {
+	return cache.client.HSet("prices", "grxP", price).Result()
+}
+func (cache *RedisCache) GetGRXPrice() (string, error) {
+	return cache.client.HGet("prices", "grxP").Result()
+}

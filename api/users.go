@@ -44,7 +44,7 @@ const (
 	ConfirmIp         = "confirmIp"
 	UID               = "Uid"
 	RevealSecretToken = "revealSecretToken"
-	TokeExpiredTime   = 24*60*60 - 3
+	TokeExpiredTime   = 24*60*60 - 2
 	//TokeExpiredTime = 8 * 60
 )
 
@@ -223,11 +223,16 @@ func (h UserHandler) Login() gin.HandlerFunc {
 				}
 			}
 			if subs, ok := userInfo["Subs"]; ok {
+				log.Println("Subs:", subs)
 				s, err := json.Marshal(subs)
 				if err != nil {
 					log.Println("Can not find parse subs:", err)
 				}
 				h.apiContext.Cache.SetUserSubs(uid, string(s))
+
+				if _, ok := userInfo["Subs"]; ok {
+					userInfo["Subs"] = true
+				}
 			}
 		}()
 		val := <-res
@@ -271,9 +276,7 @@ func (h UserHandler) Login() gin.HandlerFunc {
 			}
 
 		}()
-		if _, ok := userInfo["Subs"]; ok {
-			userInfo["Subs"] = true
-		}
+
 		tokenStr, err := h.apiContext.Jwt.GenToken(uid, 24*60)
 		userBasicInfo := make(map[string]interface{})
 		userBasicInfo["Tfa"] = false
@@ -318,6 +321,18 @@ func (h UserHandler) Login() gin.HandlerFunc {
 			userMeta = snapShot.Data()
 			h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), map[string]interface{}{"TokenExpiredTime": tokeExpTime}, firestore.MergeAll)
 		}
+		userMeta["TokenExpiredTime"] = tokeExpTime
+
+		grxP, err := h.apiContext.Cache.GetGRXPrice()
+		if err != nil {
+			grxP = "1"
+		}
+		xlmP, err := h.apiContext.Cache.GetXLMPrice()
+		if err != nil {
+			xlmP = "1"
+		}
+		userMeta["XlmP"] = xlmP
+		userMeta["GrxP"] = grxP
 
 		// if timeCreated < 1578380479 {
 		// 	// set user meta data
@@ -1124,7 +1139,7 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 		}
 
 		if stellar.IsMainNet {
-			seq, hash, err := stellar.SendXLMCreateAccount(input.PublicKey, float64(2.00001), h.apiContext.Config.XlmLoanerSeed)
+			seq, hash, err := stellar.SendXLMCreateAccount(input.PublicKey, float64(2.0001), h.apiContext.Config.XlmLoanerSeed)
 			if err != nil {
 				GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
 				return
@@ -1915,7 +1930,7 @@ func (h UserHandler) TxVerify() gin.HandlerFunc {
 		log.Println("amount:", amount)
 		switch request.Action {
 		case "payoff":
-			if amount >= 1.5 {
+			if amount >= 2.0001 {
 				// Set IsLoan to true
 				_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{"LoanPaidStatus": 2}, firestore.MergeAll)
 				if err != nil {

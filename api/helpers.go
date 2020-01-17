@@ -72,6 +72,7 @@ func GetLedgerInfo(url, publicKey, xlmLoaner string) (string, string, float64, e
 		log.Println("ParseLedgerData err:", err)
 		return "", "", 0, err
 	}
+	log.Println("GetLedgerInfo-em", em)
 
 	for _, record := range em.Embed.Records {
 		if from, ok := record["from"]; ok && from.(string) == publicKey {
