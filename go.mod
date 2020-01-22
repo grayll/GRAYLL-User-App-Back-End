@@ -3,6 +3,7 @@ module bitbucket.org/grayll/grayll.io-user-app-back-end
 go 1.12
 
 require (
+	cloud.google.com/go v0.51.0
 	cloud.google.com/go/firestore v1.1.0
 	firebase.google.com/go v3.10.0+incompatible
 	github.com/Masterminds/goutils v1.1.0 // indirect
@@ -17,6 +18,7 @@ require (
 	github.com/gin-contrib/cors v1.3.0
 	github.com/gin-gonic/gin v1.4.0
 	github.com/go-redis/redis v6.15.6+incompatible
+	github.com/golang/protobuf v1.3.2
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/huyntsgs/hermes v0.0.0-20191119075450-4a9f1c2a64a0
 	github.com/huyntsgs/stellar-service v0.0.0-20200114155205-8c496052704e
@@ -28,6 +30,7 @@ require (
 	github.com/sendgrid/sendgrid-go v3.5.0+incompatible
 	github.com/stellar/go v0.0.0-20190920224012-d72ea298f1e9
 	go.uber.org/goleak v0.10.0 // indirect
-	golang.org/x/crypto v0.0.0-20190621222207-cc06ce4a13d4
-	google.golang.org/api v0.14.0
+	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
+	google.golang.org/api v0.15.0
+	google.golang.org/genproto v0.0.0-20200117163144-32f20d992d24
 )

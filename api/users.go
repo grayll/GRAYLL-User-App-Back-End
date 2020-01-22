@@ -36,7 +36,7 @@ const (
 	LoginSuccess           = "GRAYLL | Account Login Successful"
 	ResetPasswordSub       = "GRAYLL | Reset Password Verification"
 	ChangeEmailSub         = "GRAYLL | Confirm change email request"
-	RevealSecretTokenSub   = "GRAYLL | Reveal Secret Token"
+	RevealSecretTokenSub   = "GRAYLL | Reveal Secret Key"
 
 	VerifyEmail       = "verifyEmail"
 	ResetPassword     = "resetPassword"
@@ -98,11 +98,11 @@ func (h UserHandler) Login() gin.HandlerFunc {
 			GinRespond(c, http.StatusOK, UNVERIFIED, "Email is not verified")
 			return
 		}
-		var gd geoIPData
-		gd.Country = c.GetHeader("X-AppEngine-Country")
-		gd.Region = c.GetHeader("X-AppEngine-Region")
-		gd.City = c.GetHeader("X-AppEngine-City")
-		log.Println("GeoIp data:", gd)
+		// var gd geoIPData
+		// gd.Country = c.GetHeader("X-AppEngine-Country")
+		// gd.Region = c.GetHeader("X-AppEngine-Region")
+		// gd.City = c.GetHeader("X-AppEngine-City")
+		// log.Println("GeoIp data:", gd)
 
 		currentIp := utils.RealIP(c.Request)
 		setting, ok := userInfo["Setting"].(map[string]interface{})
@@ -201,8 +201,8 @@ func (h UserHandler) Login() gin.HandlerFunc {
 						log.Println("SaveNotice error: ", err)
 						return
 					}
-
-					_, err = h.apiContext.Store.Doc("users/"+uid).Update(ctx, []firestore.Update{
+					// Set unread general
+					_, err = h.apiContext.Store.Doc("users_meta/"+uid).Update(ctx, []firestore.Update{
 						{Path: "UrGeneral", Value: firestore.Increment(1)},
 					})
 					if err != nil {
@@ -1005,6 +1005,7 @@ func (h UserHandler) SendEmailResetPwd() gin.HandlerFunc {
 			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not encrypt token")
 			return
 		}
+
 		err = mail.SendMail(input.Email, userInfo["Name"].(string), ResetPasswordSub, ResetPassword, encodeStr, h.apiContext.Config.Host, nil)
 		if err != nil {
 			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not send reset password email right now")
@@ -1227,6 +1228,12 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 			// if err != nil {
 			// 	log.Printf(uid+": SetNotice cache error %v\n", err)
 			// }
+
+		}()
+
+		// Add to cloud task for reminding repay loan
+		go func() {
+			// create task
 
 		}()
 

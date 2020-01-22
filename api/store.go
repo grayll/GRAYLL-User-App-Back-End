@@ -30,5 +30,5 @@ func GetUserByField(client *firestore.Client, field, value string) (map[string]i
 		}
 		return doc.Data(), doc.Ref.ID
 	}
-	return nil, ""
+	//return nil, ""
 }

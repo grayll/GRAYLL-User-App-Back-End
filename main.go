@@ -23,7 +23,7 @@ func main() {
 	}
 	var store *firestore.Client
 
-	config := parseConfig("config.json")
+	config := parseConfig("config1.json")
 	asset := assets.Asset{Code: config.AssetCode, IssuerAddress: config.IssuerAddress}
 
 	//spew.Dump(config)

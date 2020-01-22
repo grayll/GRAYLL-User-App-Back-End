@@ -1,0 +1,13 @@
+{
+	"isMainNet":false,
+	"assetCode":"GRXT",
+	"issuerAddress":"GAKXWUADYNO67NQ6ET7PT2DSLE5QGGDTNZZRESXCWWYYA2UCLOYT7AKR",
+	"xlmLoanerSeed":"SCH3R5ONBEKEBD22FNFCCQRAAJHC7X5L7XMETEYUJ7HQQDMSJL3OMCRE",
+	"xlmLoanerAddress":"GBJVGARC2QUPCGCN6BSIM3NMUB3UN7GQVO3QXGD37EI4VCZBB4FUUD5D",
+	"redisHost":"35.238.243.151",
+	"redisPort": 6379,
+	"redisPass":"KyZZspRWiyFiBOihPNYrqM9OBZ",
+	"horizonUrl":"https://horizon-testnet.stellar.org/",
+	"host":"http://127.0.0.1:4200"
+
+}
