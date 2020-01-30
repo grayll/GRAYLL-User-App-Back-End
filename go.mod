@@ -21,7 +21,8 @@ require (
 	github.com/golang/protobuf v1.3.2
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/huyntsgs/hermes v0.0.0-20191119075450-4a9f1c2a64a0
-	github.com/huyntsgs/stellar-service v0.0.0-20200114155205-8c496052704e
+	github.com/huyntsgs/stellar-service v0.0.0-20200128120222-b3286e4e9739
+
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/jaytaylor/html2text v0.0.0-20190408195923-01ec452cbe43 // indirect
 	github.com/mitchellh/copystructure v1.0.0 // indirect

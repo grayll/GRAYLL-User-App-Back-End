@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"strings"
@@ -16,13 +17,13 @@ import (
 	//"bitbucket.org/grayll/grayll.io-user-app-back-end/mail"
 	//"bitbucket.org/grayll/grayll.io-user-app-back-end/models"
 	//"bitbucket.org/grayll/grayll.io-user-app-back-end/utils"
+	"bitbucket.org/grayll/grayll.io-user-app-back-end/mail"
 	"cloud.google.com/go/firestore"
+	"github.com/SherClockHolmes/webpush-go"
 	"github.com/gin-gonic/gin"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	stellar "github.com/huyntsgs/stellar-service"
 	"google.golang.org/api/iterator"
-
-	//"github.com/go-redis/redis"
 
 	cloudtasks "cloud.google.com/go/cloudtasks/apiv2"
 	taskspb "google.golang.org/genproto/googleapis/cloud/tasks/v2"
@@ -89,13 +90,6 @@ const (
 // 	City    string
 // }
 
-// Creates new UserHandler.
-// UserHandler accepts interface UserStore.
-// Any data store implements UserStore could be the input of the handle.
-// func NewUserHandler(apiContext *ApiContext) UserHandler {
-// 	return UserHandler{apiContext: apiContext}
-// }
-
 func (h UserHandler) GetFramesData() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
@@ -105,7 +99,7 @@ func (h UserHandler) GetFramesData() gin.HandlerFunc {
 			Frame string `json:"frame"`
 		}
 		mt := new(sync.Mutex)
-		res := make(map[string][]*PriceData, 0)
+		res := make(map[string][]PriceData, 0)
 
 		err := c.BindJSON(&input)
 		if err != nil {
@@ -116,23 +110,29 @@ func (h UserHandler) GetFramesData() gin.HandlerFunc {
 		fmt.Printf("got input data: %v\n", input)
 		coins := strings.Split(input.Coins, ",")
 		wg := new(sync.WaitGroup)
-		wg.Add(3)
+		wg.Add(len(coins))
 		for _, pair := range coins {
 			if input.Limit == 1 {
-				prices := QueryFrameData(h.apiContext.Store, input.Limit, pair, input.Frame)
-				res[pair] = prices
+				go func(pairstr string) {
+					defer wg.Done()
+					prices := QueryFrameData(h.apiContext.Store, input.Limit, pairstr, input.Frame)
+					mt.Lock()
+					res[pairstr] = prices
+					mt.Unlock()
+				}(pair)
 			} else {
 				go func(pairstr string) {
+					defer wg.Done()
 					prices := QueryFrameDataWithTs(h.apiContext.Store, input.Limit, pairstr, input.Frame)
 					mt.Lock()
 					res[pairstr] = prices
 					mt.Unlock()
-					wg.Done()
 				}(pair)
 			}
 		}
-
 		wg.Wait()
+
+		//log.Println("res", res)
 
 		c.JSON(http.StatusOK, gin.H{
 			"status": "success", "res": res,
@@ -202,20 +202,8 @@ func (h UserHandler) MakeTransaction() gin.HandlerFunc {
 	}
 }
 
-func (h UserHandler) HandleXlmLoanReminder() gin.HandlerFunc {
+func (h UserHandler) XlmLoanReminder() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		//X-CloudTasks-TaskETA X-CloudTasks-TaskName X-CloudTasks-TaskRetryCount
-		taskName := c.GetHeader("X-Appengine-Taskname")
-		if len(taskName) == 0 {
-			// You may use the presence of the X-Appengine-Taskname header to validate
-			// the request comes from Cloud Tasks.
-			log.Println("Invalid Task: No X-Appengine-Taskname request header found")
-			//http.Error(w, "Bad Request - Invalid Task", http.StatusBadRequest)
-			return
-		}
-
-		// Pull useful headers from Task request.
-		queueName := c.GetHeader("X-Appengine-Queuename")
 
 		// Extract the request body for further task details.
 		body, err := ioutil.ReadAll(c.Request.Body)
@@ -225,18 +213,276 @@ func (h UserHandler) HandleXlmLoanReminder() gin.HandlerFunc {
 			return
 		}
 
-		// Log & output details of the task.
-		output := fmt.Sprintf("Completed task: task queue(%s), task name(%s), payload(%s)",
-			queueName,
-			taskName,
-			string(body),
-		)
-		log.Println(output)
+		data := make(map[string]interface{})
+		err = json.Unmarshal(body, &data)
+		if err != nil {
+			log.Println("error parse task data")
+			return
+		}
+		log.Println("Task data:", data)
+		uid := data["uid"].(string)
+
+		orderId := int64(data["orderId"].(float64))
+		activatedAt := int64(data["activatedAt"].(float64))
+
+		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+		if userInfo == nil {
+			GinRespond(c, http.StatusOK, EMAIL_NOT_EXIST, "Account does not exist.")
+			return
+		}
+
+		loanPaidStatus := userInfo["LoanPaidStatus"].(int64)
+		if loanPaidStatus == 1 {
+			log.Println("Send mail and push notice")
+			// Send mail and push notice
+			if orderId < 40 {
+				content := genReminderContent(orderId)
+				title := "XLM Loan Repayment Notification"
+				mail.SendLoanReminder(userInfo["Email"].(string), userInfo["Name"].(string), title, h.apiContext.Config.Host, content, true)
+
+				// app notice
+				body := ""
+				for _, con := range content {
+					body = body + con
+				}
+				url := fmt.Sprintf("%s/dashboard/overview/(popup:xlm-loan)", h.apiContext.Config.Host)
+				// Send app and push notices
+				notice := map[string]interface{}{
+					"type":    "general",
+					"title":   title,
+					"isRead":  false,
+					"url":     url,
+					"body":    body,
+					"time":    time.Now().Unix(),
+					"vibrate": []int32{100, 50, 100},
+					"icon":    "https://app.grayll.io/favicon.ico",
+					"data": map[string]interface{}{
+						"url": h.apiContext.Config.Host + "/notifications/overview",
+					},
+				}
+
+				//ctx := context.Background()
+				log.Println("Start push notice")
+				go func() {
+					subs, err := h.apiContext.Cache.GetUserSubs(uid)
+					if err == nil && subs != "" {
+						//log.Println("subs: ", subs)
+						noticeData := map[string]interface{}{
+							"notification": notice,
+						}
+						webpushSub := webpush.Subscription{}
+						err = json.Unmarshal([]byte(subs), &webpushSub)
+						if err != nil {
+							log.Println("Unmarshal subscription from redis error: ", err)
+							return
+						}
+						err = PushNotice(noticeData, &webpushSub)
+						if err != nil {
+							log.Println("PushNotice error: ", err)
+							//return
+						}
+					}
+				}()
+
+				// Save to firestore
+				ctx := context.Background()
+				docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
+				_, err = docRef.Set(ctx, notice)
+				if err != nil {
+					log.Println("SaveNotice error: ", err)
+					return
+				}
+				// Set unread general
+				_, err = h.apiContext.Store.Doc("users_meta/"+uid).Update(ctx, []firestore.Update{
+					{Path: "UrGeneral", Value: firestore.Increment(1)},
+				})
+				if err != nil {
+					log.Println("SaveNotice update error: ", err)
+					//return
+				}
+
+				// check loan paid status again
+				// if not paid, schedule to send reminder
+				go func() {
+					createLoanReminder(uid, orderId+1, activatedAt)
+				}()
+				go func() {
+					mail.SaveLoanPaidInfo(userInfo["Name"].(string), userInfo["LName"].(string), userInfo["Email"].(string), "no", userInfo["CreatedAt"].(int64), orderId)
+				}()
+			} else {
+				content := genReminderContent(orderId)
+				title := "Account Closure Notification"
+				mail.SendLoanReminder(userInfo["Email"].(string), userInfo["Name"].(string), title, h.apiContext.Config.Host, content, false)
+
+				// merge account
+				err := stellar.MergeAccount(userInfo["PublicKey"].(string), h.apiContext.Config.XlmLoanerAddress,
+					h.apiContext.Config.XlmLoanerSeed, h.apiContext.Config.IssuerAddress)
+				if err != nil {
+					log.Println("Can not MergeAccount error:", err)
+				}
+
+				// move user data to backup
+				_, err = h.apiContext.Store.Doc("accounts_closure/"+uid).Set(context.Background(), userInfo)
+				if err != nil {
+					log.Println("Can not set account closure:", err)
+				} else {
+					_, err := h.apiContext.Store.Doc("users/" + uid).Delete(context.Background())
+					if err != nil {
+						log.Println("Can not delete account:", err)
+					}
+				}
+
+				// app notice
+				body := ""
+				for _, con := range content {
+					body = body + con
+				}
+				// Send app and push notices
+				notice := map[string]interface{}{
+					"type":    "general",
+					"title":   title,
+					"isRead":  false,
+					"body":    body,
+					"time":    time.Now().Unix(),
+					"vibrate": []int32{100, 50, 100},
+					"icon":    "https://app.grayll.io/favicon.ico",
+					"data": map[string]interface{}{
+						"url": h.apiContext.Config.Host + "/notifications/overview",
+					},
+				}
+
+				//ctx := context.Background()
+				log.Println("Start push notice")
+				go func() {
+					subs, err := h.apiContext.Cache.GetUserSubs(uid)
+					if err == nil && subs != "" {
+						//log.Println("subs: ", subs)
+						noticeData := map[string]interface{}{
+							"notification": notice,
+						}
+						webpushSub := webpush.Subscription{}
+						err = json.Unmarshal([]byte(subs), &webpushSub)
+						if err != nil {
+							log.Println("Unmarshal subscription from redis error: ", err)
+							return
+						}
+						err = PushNotice(noticeData, &webpushSub)
+						if err != nil {
+							log.Println("PushNotice error: ", err)
+							//return
+						}
+					}
+				}()
+			}
+		} else {
+			go func() {
+				mail.SaveLoanPaidInfo(userInfo["Name"].(string), userInfo["LName"].(string), userInfo["Email"].(string), "yes", userInfo["CreatedAt"].(int64), orderId)
+			}()
+		}
+
+		c.Status(200)
 	}
 }
 
+func genReminderContent(orderId int64) []string {
+
+	content := make([]string, 0)
+	if orderId >= 1 && orderId <= 15 {
+		//	1) First 30 days from account creation: send " XLM Loan Repayment Notification" every 48 hours.
+		content = []string{
+			`GRAYLL has lent you 2.0001 XLM (Stellar Lumens) to activate your Stellar Network Account in the GRAYLL App.
+			Certain features, functions and algorithmic services may not be available until the XLM loan is settled.`,
+
+			`If the 2.0001 XLM loan is not settled, your account will eventually be closed.
+			We will send you periodic notifications to remind you prior to any account closure.
+			We recommend depositing at least 2.50 XLM to your GRAYLL Account, you may pay off the loan now.`,
+		}
+	} else if orderId >= 16 && orderId <= 25 {
+		//2) Next 15 days (30 days from account creation): send "XLM Loan Repayment Notification" every 36 hours.
+		days := 15 + (orderId-15)*36/24
+		content = []string{
+
+			fmt.Sprintf(`%d days ago GRAYLL lent you 2.0001 XLM (Stellar Lumens) to activate your Stellar Network Account in the GRAYLL App.
+		Certain features, functions and algorithmic services may not be available until the XLM loan is settled.`, days),
+
+			`If the 2.0001 XLM loan is not settled, your account will eventually be closed.
+		We will send you periodic notifications to remind you prior to any account closure.
+		We recommend depositing at least 2.50 XLM to your GRAYLL Account, you may pay off the loan now.`,
+		}
+	} else if orderId >= 26 && orderId < 40 {
+		//3) Next 15 days (45 days from account creation): send "XLM Loan Repayment Notification" every 24 hours.
+		days := 15 + 10 + (orderId - 25)
+		content = []string{
+			fmt.Sprintf(`In %d days your GRAYLL account will be closed if the 2.0001 XLM loan is not settled.
+			%d days ago GRAYLL lent you 2.0001 XLM (Stellar Lumens) to activate your Stellar Network Account in the GRAYLL App.
+			Certain features, functions and algorithmic services may not be available until the XLM loan is settled.`, days, days),
+
+			`Once your account is closed you will need to sign up again to access the GRAYLL App and the algorithmic services.
+			We recommend depositing at least 2.50 XLM to your GRAYLL Account, you may pay off the loan now.`,
+		}
+
+	} else if orderId >= 40 {
+		//4) After 60 days "Account Closure Notification".
+		content = []string{
+			`Your GRAYLL account has now been closed as the 2.0001 XLM loan was not repaid within 60 days.
+		You will need to sign up again to access the GRAYLL App and the algorithmic services.`,
+		}
+	}
+
+	//{"Sign Up" BUTTON}
+	return content
+
+}
+
+func createLoanReminder(uid string, orderId, activatedAt int64) {
+	// create task
+	projectId := "grayll-app-f3f3f3"
+	queueId := "xlm-loan-reminder"
+	local := "us-central1"
+	url := "https://grayll-app-bqqlgbdjbq-uc.a.run.app/api/v1/accounts/xlmLoanReminder"
+	//svAccountEmail := "service-622069026410@gcp-sa-cloudtasks.iam.gserviceaccount.com"
+	svAccountEmail := "cloud-tasks-grayll-app@grayll-app-f3f3f3.iam.gserviceaccount.com"
+	//service-622069026410@gcp-sa-cloudtasks.iam.gserviceaccount.com
+	data := map[string]interface{}{
+		"uid":         uid,
+		"activatedAt": activatedAt,
+		"orderId":     orderId,
+	}
+	json, _ := json.Marshal(data)
+	// TEST
+	scheduleTime := activatedAt + getScheduleTimeTest(orderId)
+	task, err := createHTTPTask(projectId, local, queueId, url, svAccountEmail, json, scheduleTime)
+	if err != nil {
+		log.Println("createHTTPTask error:", err)
+	} else {
+		log.Println("createHTTPTask error:", task.GetScheduleTime())
+		log.Println("createHTTPTask task name:", task.GetName())
+	}
+}
+
+func getScheduleTime(orderId int64) int64 {
+	if orderId >= 1 && orderId <= 15 {
+		return 48 * 60 * 60 * orderId
+	} else if orderId >= 1 && orderId <= 25 {
+		return (48*60*60*15 + 36*60*60*(orderId-15))
+	} else if orderId >= 26 && orderId < 40 {
+		return (48*60*60*15 + 36*60*60*10 + 24*60*60*(orderId-25))
+	}
+	return 0
+}
+func getScheduleTimeTest(orderId int64) int64 {
+	if orderId >= 1 && orderId <= 15 {
+		return 15 * 60 * orderId
+	} else if orderId >= 1 && orderId <= 25 {
+		return (15*60*15 + 10*60*(orderId-15))
+	} else if orderId >= 26 && orderId < 40 {
+		return (15*60*15 + 10*60*10 + 5*60*(orderId-25))
+	}
+	return 0
+}
+
 // createHTTPTask creates a new task with a HTTP target then adds it to a Queue.
-func createHTTPTask(projectID, locationID, queueID, url, message string) (*taskspb.Task, error) {
+func createHTTPTask(projectID, locationID, queueID, url, serviceAccountEmail string, message []byte, execTime int64) (*taskspb.Task, error) {
 
 	// Create a new Cloud Tasks client instance.
 	// See https://godoc.org/cloud.google.com/go/cloudtasks/apiv2
@@ -248,7 +494,8 @@ func createHTTPTask(projectID, locationID, queueID, url, message string) (*tasks
 
 	// Build the Task queue path.
 	queuePath := fmt.Sprintf("projects/%s/locations/%s/queues/%s", projectID, locationID, queueID)
-	execTime := new(timestamp.Timestamp)
+	ts := new(timestamp.Timestamp)
+	ts.Seconds = execTime
 
 	// Build the Task payload.
 	// https://godoc.org/google.golang.org/genproto/googleapis/cloud/tasks/v2#CreateTaskRequest
@@ -260,14 +507,19 @@ func createHTTPTask(projectID, locationID, queueID, url, message string) (*tasks
 				HttpRequest: &taskspb.HttpRequest{
 					HttpMethod: taskspb.HttpMethod_POST,
 					Url:        url,
+					AuthorizationHeader: &taskspb.HttpRequest_OidcToken{
+						OidcToken: &taskspb.OidcToken{
+							ServiceAccountEmail: serviceAccountEmail,
+						},
+					},
 				},
 			},
-			ScheduleTime: execTime,
+			ScheduleTime: ts,
 		},
 	}
 
 	// Add a payload message if one is present.
-	req.Task.GetHttpRequest().Body = []byte(message)
+	req.Task.GetHttpRequest().Body = message
 
 	createdTask, err := client.CreateTask(ctx, req)
 	if err != nil {
@@ -342,16 +594,26 @@ func GetPairDashBoardData(client *firestore.Client, coin, frame string) map[stri
 	prev1DayPrice := GetDashBoardData(client, coin, frame, 1)
 	prev7DayPrice := GetDashBoardData(client, coin, frame, 7)
 	db := make(map[string]interface{})
-	if curPrice.Price > 0 && prev1DayPrice.Price > 0 && prev7DayPrice.Price > 0 {
-		db["day"] = (curPrice.Price - prev1DayPrice.Price) * 100 / prev1DayPrice.Price
-		db["sevendays"] = (curPrice.Price - prev7DayPrice.Price) * 100 / prev7DayPrice.Price
-		if coin == "grzusd" {
-			db["roi"] = (curPrice.Price - 0.014833677768075555) * 100 / 0.014833677768075555
-		} else {
-			db["roi"] = (curPrice.Price - 0.01) * 100 / 0.01
-		}
-		db["price"] = curPrice.Price
+
+	if coin == "grzusd" {
+		db["roi"] = (curPrice.Price - 0.014833677768075555) * 100 / 0.014833677768075555
+	} else {
+		db["roi"] = (curPrice.Price - 0.01) * 100 / 0.01
 	}
+	db["price"] = curPrice.Price
+
+	if curPrice.Price > 0 && prev1DayPrice.Price > 0 {
+		db["day"] = (curPrice.Price - prev1DayPrice.Price) * 100 / prev1DayPrice.Price
+	} else {
+		db["day"] = 0.2
+	}
+
+	if curPrice.Price > 0 && prev7DayPrice.Price > 0 {
+		db["sevendays"] = (curPrice.Price - prev7DayPrice.Price) * 100 / prev7DayPrice.Price
+	} else {
+		db["sevendays"] = 1.3
+	}
+
 	//log.Println("GetPairDashBoardData:", coin, db)
 	return db
 }
@@ -377,10 +639,9 @@ func GetDashBoardData(client *firestore.Client, coin, frame string, days int64) 
 		if err != nil {
 			log.Println("err reading db: ", err)
 		}
-		if doc == nil {
-			log.Println("doc is nil")
-		}
+
 		if doc.Data() != nil {
+
 			p.Ts = doc.Data()[UNIX_timestamp].(int64)
 			p.Price = doc.Data()[price].(float64)
 			if (ts == 0) || (p.Price == 0) {
@@ -389,14 +650,42 @@ func GetDashBoardData(client *firestore.Client, coin, frame string, days int64) 
 			break
 		}
 	}
+	if p.Price == 0 {
+		ts := time.Now().Unix() - (days+1)*24*60*60
+		var it *firestore.DocumentIterator
+		if days == 0 {
+			it = client.Collection(docPath).OrderBy(UNIX_timestamp, firestore.Desc).Limit(1).Documents(ctx)
+		} else {
+			it = client.Collection(docPath).Where(UNIX_timestamp, ">=", ts).OrderBy(UNIX_timestamp, firestore.Asc).Limit(1).Documents(ctx)
+		}
+
+		for {
+
+			doc, err := it.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				log.Println("err reading db: ", err)
+			}
+			if doc.Data() != nil {
+				p.Ts = doc.Data()[UNIX_timestamp].(int64)
+				p.Price = doc.Data()[price].(float64)
+				if (ts == 0) || (p.Price == 0) {
+					continue
+				}
+				break
+			}
+		}
+	}
 	return p
 }
 
 // QueryFrameDataWithTs queries document from subcollection in firestore.
 // with limit number of documents and timestamp greater than fromTimeStamp parameter
 // grz_price_frames/grzusd/frame_01d/
-func QueryFrameDataWithTs(client *firestore.Client, limit int, coin, frame string) []*PriceData {
-	prices := make([]*PriceData, 0)
+func QueryFrameDataWithTs(client *firestore.Client, limit int, coin, frame string) []PriceData {
+	prices := make([]PriceData, 0)
 
 	var ts int64 = 0
 	switch frame {
@@ -427,12 +716,14 @@ func QueryFrameDataWithTs(client *firestore.Client, limit int, coin, frame strin
 	//fmt.Printf("QueryFrameDataWithTs - coin %s, frame %s docpath %s\n", coin, frame, docPath)
 	ctx := context.Background()
 	ts = time.Now().Unix() - ts*60
-	// Change on request start times
-	newStartTs := int64(1572519421)
-	if ts < newStartTs {
-		ts = newStartTs
-	}
+	// Change on request start times 1556989920
+	// newStartTs := int64(1572519421)
+	// if ts < newStartTs {
+	// 	ts = newStartTs
+	// }
 	it := client.Collection(docPath).Where(UNIX_timestamp, ">=", ts).OrderBy(UNIX_timestamp, firestore.Asc).Documents(ctx)
+	log.Println("docPath:", docPath)
+	//it := client.Collection(docPath).OrderBy(UNIX_timestamp, firestore.Desc).Limit(limit).Documents(ctx)
 
 	for {
 		doc, err := it.Next()
@@ -453,19 +744,19 @@ func QueryFrameDataWithTs(client *firestore.Client, limit int, coin, frame strin
 			continue
 		}
 
-		price := &PriceData{ts, p}
+		price := PriceData{ts, p}
 		prices = append(prices, price)
-		//fmt.Printf("price: %v\n", price)
-		//fmt.Printf("Doc Id: %s - timestamp: %d - price: %f\n", doc.Ref.ID, doc.Data()[tsField], doc.Data()[priceField])
+		//fmt.Printf("Doc Id: %s - timestamp: %d - price: %f\n", doc.Ref.ID, doc.Data()["UNIX_timestamp"], doc.Data()["price"])
 	}
+
 	return prices
 }
 
 // QueryFrameData queries document from subcollection in firestore.
 // with limit number of documents and timestamp greater than fromTimeStamp parameter
 // pair_frames/gryusd/frame_01d/
-func QueryFrameData(client *firestore.Client, limit int, coin, frame string) []*PriceData {
-	prices := make([]*PriceData, 0)
+func QueryFrameData(client *firestore.Client, limit int, coin, frame string) []PriceData {
+	prices := make([]PriceData, 0)
 	docPath := fmt.Sprintf("pair_frames/%s/%s", coin, frame)
 	fmt.Printf("QueryFrameData - coin %s, frame %s docpath %s\n", coin, frame, docPath)
 	ctx := context.Background()
@@ -491,7 +782,7 @@ func QueryFrameData(client *firestore.Client, limit int, coin, frame string) []*
 			continue
 		}
 
-		price := &PriceData{ts, p}
+		price := PriceData{ts, p}
 		prices = append(prices, price)
 		//fmt.Printf("price: %v\n", price)
 		//fmt.Printf("Doc Id: %s - timestamp: %d - price: %f\n", doc.Ref.ID, doc.Data()[tsField], doc.Data()[priceField])

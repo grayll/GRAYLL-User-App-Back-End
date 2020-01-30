@@ -444,6 +444,11 @@ func (h UserHandler) Register() gin.HandlerFunc {
 			return
 		}
 
+		// Save registration infor to SendGrid db
+		go func() {
+			mail.SaveRegistrationInfo(input.Name, input.LName, input.Email, input.CreatedAt)
+		}()
+
 		c.JSON(http.StatusOK, gin.H{
 			"status": "success",
 		})
@@ -1140,7 +1145,7 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 		}
 
 		if stellar.IsMainNet {
-			seq, hash, err := stellar.SendXLMCreateAccount(input.PublicKey, float64(2.0001), h.apiContext.Config.XlmLoanerSeed)
+			seq, hash, err := stellar.SendXLMCreateAccount(input.PublicKey, float64(2.1), h.apiContext.Config.XlmLoanerSeed)
 			if err != nil {
 				GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
 				return
@@ -1182,12 +1187,13 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 			// log.Printf("FundXLMTestNet: seq : %v - hash:  %v - err : %v \n", seq, hash, err)
 
 		}
+		activatedAt := time.Now().Unix()
 		activatedData := map[string]interface{}{
 			"PublicKey":      input.PublicKey,
 			"EnSecretKey":    input.EnSecretKey,
 			"SecretKeySalt":  input.Salt,
 			"LoanPaidStatus": 1,
-			"ActivatedAt":    time.Now().Unix(),
+			"ActivatedAt":    activatedAt,
 			// "Setting": map[string]interface{}{
 			// 	"IpConfirm": true, "MulSignature": true, "AppGeneral": true, "AppWallet": true, "AppAlgo": true, "MailGeneral": true, "MailWallet": true, "MailAlgo": true,
 			// },
@@ -1231,10 +1237,11 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 
 		}()
 
-		// Add to cloud task for reminding repay loan
 		go func() {
-			// create task
-
+			// TEST
+			if userInfo["Email"].(string) == "huynt580@gmail.com" {
+				createLoanReminder(uid, int64(1), int64(activatedAt))
+			}
 		}()
 
 		GinRespond(c, http.StatusOK, SUCCESS, "")

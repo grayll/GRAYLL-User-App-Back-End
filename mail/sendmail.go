@@ -138,6 +138,47 @@ func (email *Email) GenMailWithContents(firstName string, contents []string) (st
 	}
 	return email.branch.GenerateHTML(emailBody)
 }
+func (email *Email) GenMailLoanReminder(firstName, url string, contents []string, isPayoffButton bool) (string, error) {
+	var emailBody hermes.Email
+	if isPayoffButton {
+		emailBody = hermes.Email{
+			Body: hermes.Body{
+				Name:      firstName,
+				Greeting:  "Dear",
+				Signature: "With gratitude",
+				Intros:    contents,
+				Actions: []hermes.Action{
+					{
+						Button: hermes.Button{
+							Color: "#40278C",
+							Text:  "PAY OFF LOAN",
+							Link:  url,
+						},
+					},
+				},
+			},
+		}
+	} else {
+		emailBody = hermes.Email{
+			Body: hermes.Body{
+				Name:      firstName,
+				Greeting:  "Dear",
+				Signature: "With gratitude",
+				Intros:    contents,
+				Actions: []hermes.Action{
+					{
+						Button: hermes.Button{
+							Color: "#40278C",
+							Text:  "SIGN UP",
+							Link:  url,
+						},
+					},
+				},
+			},
+		}
+	}
+	return email.branch.GenerateHTML(emailBody)
+}
 
 func (email *Email) GenConfirmIp(firstName, url string, expiredInDays int, mores map[string]string) (string, error) {
 	// timeExpire := ""

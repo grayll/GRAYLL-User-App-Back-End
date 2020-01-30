@@ -37,3 +37,9 @@ func TestSendMail(t *testing.T) {
 	// SendMail("huynt580@gmail.com", "Huy", "Confirm your registration with GRAYLL",
 	// 	"verifyEmail", "tAb8gxCCVdWLUWGBgARPIoOoj3D0Ds9kAwu1dJQYBKwAAAF")
 }
+
+func TestSaveRegistrationInfo(t *testing.T) {
+	//CreateCustomField()
+	//SaveRegistrationInfo("huy", "ngt", "huykbc@gmail.com", 1580313365)
+	SaveLoanPaidInfo("huy", "ngt", "huykbc@gmail.com", "yes", 1580313365, 2)
+}

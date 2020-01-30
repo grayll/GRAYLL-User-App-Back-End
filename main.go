@@ -80,14 +80,6 @@ func SetupRouter(appContext *api.ApiContext) *gin.Engine {
 	// Always has versioning for api
 	// Default(initial) is v1
 	v1 := router.Group("/api/v1")
-
-	// v1.POST("/users/register", userHandler.Register())
-	// v1.GET("/users/validatecode", userHandler.ValidateCode())
-	// v1.POST("/users/login", userHandler.Login())
-	// v1.POST("/users/resendemail", userHandler.ResendEmailConfirm())
-	// v1.POST("/users/mailresetpassword", userHandler.SendEmailResetPwd())
-	// v1.POST("/users/resetpassword", userHandler.ResetPassword())
-
 	v1.POST("/accounts/register", userHandler.Register())
 	v1.GET("/accounts/validatecode", userHandler.ValidateCode())
 	v1.POST("/accounts/login", userHandler.Login())
@@ -96,6 +88,7 @@ func SetupRouter(appContext *api.ApiContext) *gin.Engine {
 	v1.POST("/accounts/resetpassword", userHandler.ResetPassword())
 
 	v1.GET("/accounts/federation", userHandler.Federation())
+	v1.POST("/accounts/xlmLoanReminder", userHandler.XlmLoanReminder())
 
 	v1.GET("/warmup", userHandler.Warmup())
 	v1.GET("/checkpw", userHandler.CheckPw())
