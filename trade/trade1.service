@@ -1,0 +1,8 @@
+[Unit]
+Description=Streaming
+
+[Service]
+ExecStart=/home/huykbc/trade -prod=true
+
+[Install]
+WantedBy=multi-user.target

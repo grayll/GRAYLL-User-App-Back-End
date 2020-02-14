@@ -7,17 +7,21 @@ import (
 )
 
 type Config struct {
-	IsMainNet        bool   `json:"isMainNet"`
-	AssetCode        string `json:"assetCode"`
-	IssuerAddress    string `json:"issuerAddress"`
-	XlmLoanerSeed    string `json:"xlmLoanerSeed"`
-	XlmLoanerAddress string `json:"xlmLoanerAddress"`
-	RedisHost        string `json:"redisHost"`
-	RedisPort        int    `json:"redisPort"`
-	RedisPass        string `json:"redisPass"`
-	HorizonUrl       string `json:"horizonUrl"`
-	Host             string `json:"host"`
-	Numberify        string `json:"numberify"`
+	IsMainNet         bool    `json:"isMainNet"`
+	AssetCode         string  `json:"assetCode"`
+	IssuerAddress     string  `json:"issuerAddress"`
+	XlmLoanerSeed     string  `json:"xlmLoanerSeed"`
+	XlmLoanerAddress  string  `json:"xlmLoanerAddress"`
+	RedisHost         string  `json:"redisHost"`
+	RedisPort         int     `json:"redisPort"`
+	RedisPass         string  `json:"redisPass"`
+	HorizonUrl        string  `json:"horizonUrl"`
+	Host              string  `json:"host"`
+	Numberify         string  `json:"numberify"`
+	SuperAdminAddress string  `json:"superAdminAddress"`
+	SuperAdminSeed    string  `json:"superAdminSeed"`
+	SellingPrice      float64 `json:"sellingPrice"`
+	SellingPercent    int     `json:"sellingPercent"`
 }
 type ApiContext struct {
 	Store  *firestore.Client

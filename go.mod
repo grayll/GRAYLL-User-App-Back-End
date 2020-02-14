@@ -2,6 +2,8 @@ module bitbucket.org/grayll/grayll.io-user-app-back-end
 
 go 1.12
 
+//replace github.com/huyntsgs/stellar-service v0.0.0-20200128120222-b3286e4e9739 => /home/bc/go/src/github.com/huyntsgs/stellar-service
+
 require (
 	cloud.google.com/go v0.51.0
 	cloud.google.com/go/firestore v1.1.0
@@ -10,6 +12,8 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
 	github.com/SherClockHolmes/webpush-go v1.1.0
+	github.com/algolia/algoliasearch-client-go/v3 v3.5.2
+	github.com/antigloss/go v0.0.0-20200109080012-05d5d0918164
 	github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a
 	github.com/avct/uasurfer v0.0.0-20191028135549-26b5daa857f1
 	github.com/davecgh/go-spew v1.1.1
@@ -21,7 +25,7 @@ require (
 	github.com/golang/protobuf v1.3.2
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/huyntsgs/hermes v0.0.0-20191119075450-4a9f1c2a64a0
-	github.com/huyntsgs/stellar-service v0.0.0-20200128120222-b3286e4e9739
+	github.com/huyntsgs/stellar-service v0.0.0-20200209144523-337366ca82af
 
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/jaytaylor/html2text v0.0.0-20190408195923-01ec452cbe43 // indirect

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -140,6 +141,78 @@ func (h UserHandler) GetFramesData() gin.HandlerFunc {
 	}
 }
 
+func (h UserHandler) GetFramesDataGet() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		var input struct {
+			Limit int    `json:"limit"`
+			Coins string `json:"coins"`
+			Frame string `json:"frame"`
+		}
+		var err error
+		log.Println(c.Params)
+		input.Limit, err = strconv.Atoi(c.Param("limit"))
+		if err != nil || input.Limit > 300 {
+			log.Println("Parse limit err:", err)
+			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Can not parse json input")
+			return
+		}
+
+		input.Coins = c.Param("coins")
+		if err != nil {
+			log.Println("Parse coin err:", err)
+			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Can not parse json input")
+			return
+		}
+		input.Frame = c.Param("frame")
+		if err != nil {
+			log.Println("Parse frame err:", err)
+			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Can not parse json input")
+			return
+		}
+
+		mt := new(sync.Mutex)
+		res := make(map[string][]PriceData, 0)
+
+		// err = c.BindJSON(&input)
+		// if err != nil {
+		// 	log.Println("BindJSON err:", err)
+		// 	GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Can not parse json input")
+		// 	return
+		// }
+		// fmt.Printf("got input data: %v\n", input)
+		coins := strings.Split(input.Coins, ",")
+		wg := new(sync.WaitGroup)
+		wg.Add(len(coins))
+		for _, pair := range coins {
+			if input.Limit == 1 {
+				go func(pairstr string) {
+					defer wg.Done()
+					prices := QueryFrameData(h.apiContext.Store, input.Limit, pairstr, input.Frame)
+					mt.Lock()
+					res[pairstr] = prices
+					mt.Unlock()
+				}(pair)
+			} else {
+				go func(pairstr string) {
+					defer wg.Done()
+					prices := QueryFrameDataWithTs(h.apiContext.Store, input.Limit, pairstr, input.Frame)
+					mt.Lock()
+					res[pairstr] = prices
+					mt.Unlock()
+				}(pair)
+			}
+		}
+		wg.Wait()
+
+		//log.Println("res", res)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": "success", "res": res,
+		})
+	}
+}
+
 func (h UserHandler) MakeTransaction() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
@@ -175,7 +248,11 @@ func (h UserHandler) MakeTransaction() gin.HandlerFunc {
 					GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
 					return
 				}
-				log.Println("set isloan:")
+				log.Println("isloan:")
+				// _, _, err = stellar.RemoveSigner(userInfo["PublicKey"].(string), h.apiContext.Config.XlmLoanerSeed)
+				// if err != nil {
+				// 	log.Println("Can not remove signer", err)
+				// }
 				c.JSON(http.StatusOK, gin.H{
 					"errCode": txcode, "xdrResult": txrs.Result,
 				})
@@ -219,7 +296,7 @@ func (h UserHandler) XlmLoanReminder() gin.HandlerFunc {
 			log.Println("error parse task data")
 			return
 		}
-		log.Println("Task data:", data)
+		//log.Println("Task data:", data)
 		uid := data["uid"].(string)
 
 		orderId := int64(data["orderId"].(float64))
@@ -237,7 +314,7 @@ func (h UserHandler) XlmLoanReminder() gin.HandlerFunc {
 			// Send mail and push notice
 			if orderId < 40 {
 				content := genReminderContent(orderId)
-				title := "XLM Loan Repayment Notification"
+				title := "GRAYLL | XLM Loan Repayment Reminder"
 				mail.SendLoanReminder(userInfo["Email"].(string), userInfo["Name"].(string), title, h.apiContext.Config.Host, content, true)
 
 				// app notice
@@ -286,7 +363,7 @@ func (h UserHandler) XlmLoanReminder() gin.HandlerFunc {
 
 				// Save to firestore
 				ctx := context.Background()
-				docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
+				docRef := h.apiContext.Store.Collection("notices").Doc("wallet").Collection(uid).NewDoc()
 				_, err = docRef.Set(ctx, notice)
 				if err != nil {
 					log.Println("SaveNotice error: ", err)
@@ -311,7 +388,7 @@ func (h UserHandler) XlmLoanReminder() gin.HandlerFunc {
 				}()
 			} else {
 				content := genReminderContent(orderId)
-				title := "Account Closure Notification"
+				title := "GRAYLL | Account Closure Reminder"
 				mail.SendLoanReminder(userInfo["Email"].(string), userInfo["Name"].(string), title, h.apiContext.Config.Host, content, false)
 
 				// merge account
@@ -390,10 +467,10 @@ func genReminderContent(orderId int64) []string {
 	if orderId >= 1 && orderId <= 15 {
 		//	1) First 30 days from account creation: send " XLM Loan Repayment Notification" every 48 hours.
 		content = []string{
-			`GRAYLL has lent you 2.0001 XLM (Stellar Lumens) to activate your Stellar Network Account in the GRAYLL App.
+			`GRAYLL has lent you 2.1000 XLM (Stellar Lumens) to activate your Stellar Network Account in the GRAYLL App.
 			Certain features, functions and algorithmic services may not be available until the XLM loan is settled.`,
 
-			`If the 2.0001 XLM loan is not settled, your account will eventually be closed.
+			`If the 2.1000 XLM loan is not settled, your account will eventually be closed.
 			We will send you periodic notifications to remind you prior to any account closure.
 			We recommend depositing at least 2.50 XLM to your GRAYLL Account, you may pay off the loan now.`,
 		}
@@ -402,10 +479,10 @@ func genReminderContent(orderId int64) []string {
 		days := 15 + (orderId-15)*36/24
 		content = []string{
 
-			fmt.Sprintf(`%d days ago GRAYLL lent you 2.0001 XLM (Stellar Lumens) to activate your Stellar Network Account in the GRAYLL App.
+			fmt.Sprintf(`%d days ago GRAYLL lent you 2.1000 XLM (Stellar Lumens) to activate your Stellar Network Account in the GRAYLL App.
 		Certain features, functions and algorithmic services may not be available until the XLM loan is settled.`, days),
 
-			`If the 2.0001 XLM loan is not settled, your account will eventually be closed.
+			`If the 2.1000 XLM loan is not settled, your account will eventually be closed.
 		We will send you periodic notifications to remind you prior to any account closure.
 		We recommend depositing at least 2.50 XLM to your GRAYLL Account, you may pay off the loan now.`,
 		}
@@ -413,8 +490,8 @@ func genReminderContent(orderId int64) []string {
 		//3) Next 15 days (45 days from account creation): send "XLM Loan Repayment Notification" every 24 hours.
 		days := 15 + 10 + (orderId - 25)
 		content = []string{
-			fmt.Sprintf(`In %d days your GRAYLL account will be closed if the 2.0001 XLM loan is not settled.
-			%d days ago GRAYLL lent you 2.0001 XLM (Stellar Lumens) to activate your Stellar Network Account in the GRAYLL App.
+			fmt.Sprintf(`In %d days your GRAYLL account will be closed if the 2.1000 XLM loan is not settled.
+			%d days ago GRAYLL lent you 2.1000 XLM (Stellar Lumens) to activate your Stellar Network Account in the GRAYLL App.
 			Certain features, functions and algorithmic services may not be available until the XLM loan is settled.`, days, days),
 
 			`Once your account is closed you will need to sign up again to access the GRAYLL App and the algorithmic services.
@@ -424,7 +501,7 @@ func genReminderContent(orderId int64) []string {
 	} else if orderId >= 40 {
 		//4) After 60 days "Account Closure Notification".
 		content = []string{
-			`Your GRAYLL account has now been closed as the 2.0001 XLM loan was not repaid within 60 days.
+			`Your GRAYLL account has now been closed as the 2.1000 XLM loan was not repaid within 60 days.
 		You will need to sign up again to access the GRAYLL App and the algorithmic services.`,
 		}
 	}
@@ -450,7 +527,7 @@ func createLoanReminder(uid string, orderId, activatedAt int64) {
 	}
 	json, _ := json.Marshal(data)
 	// TEST
-	scheduleTime := activatedAt + getScheduleTimeTest(orderId)
+	scheduleTime := activatedAt + getScheduleTime(orderId)
 	task, err := createHTTPTask(projectId, local, queueId, url, svAccountEmail, json, scheduleTime)
 	if err != nil {
 		log.Println("createHTTPTask error:", err)
@@ -588,7 +665,38 @@ func (h UserHandler) GetDashBoardInfo() gin.HandlerFunc {
 		})
 	}
 }
+func (h UserHandler) GetDashBoardInfoGet() gin.HandlerFunc {
+	return func(c *gin.Context) {
 
+		var input struct {
+			Coins string `json:"coins"`
+		}
+
+		input.Coins = c.Param("coins")
+		mt := new(sync.Mutex)
+		db := make(map[string]interface{}, 0)
+
+		fmt.Printf("got input data: %v\n", input)
+		coins := strings.Split(input.Coins, ",")
+		wg := new(sync.WaitGroup)
+		wg.Add(3)
+		// Get dashboard data
+		for _, pair := range coins {
+			go func(pairstr string) {
+				dbData := GetPairDashBoardData(h.apiContext.Store, pairstr, "frame_01m")
+				mt.Lock()
+				db[pairstr] = dbData
+				mt.Unlock()
+				wg.Done()
+			}(pair)
+		}
+		wg.Wait()
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": "success", "db": db,
+		})
+	}
+}
 func GetPairDashBoardData(client *firestore.Client, coin, frame string) map[string]interface{} {
 	curPrice := GetDashBoardData(client, coin, frame, 0)
 	prev1DayPrice := GetDashBoardData(client, coin, frame, 1)

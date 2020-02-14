@@ -25,6 +25,8 @@ import (
 	"github.com/dgryski/dgoogauth"
 	"github.com/gin-gonic/gin"
 	stellar "github.com/huyntsgs/stellar-service"
+	build "github.com/stellar/go/txnbuild"
+
 	"google.golang.org/api/iterator"
 	//"github.com/huyntsgs/stellar-service/assets"
 	//"github.com/go-redis/redis"
@@ -257,8 +259,13 @@ func (h UserHandler) Login() gin.HandlerFunc {
 				log.Println("Can not send login notice mail:", err)
 			}
 		}()
-		//}
+
+		tokenStr, err := h.apiContext.Jwt.GenToken(uid, 24*60)
+		// localKey used by client to encrypt secret key and store encrypted secret key on local
+		localKey := randStr(32, "alphanum")
 		go func() {
+			// Set local key in redis, getUserInfo will get from redis cache
+			h.apiContext.Cache.client.Set(tokenStr, localKey, time.Hour*24)
 			h.apiContext.Store.Doc("users/"+uid).Set(ctx, map[string]interface{}{
 				"LoginTime": time.Now().Unix(),
 			}, firestore.MergeAll)
@@ -277,7 +284,6 @@ func (h UserHandler) Login() gin.HandlerFunc {
 
 		}()
 
-		tokenStr, err := h.apiContext.Jwt.GenToken(uid, 24*60)
 		userBasicInfo := make(map[string]interface{})
 		userBasicInfo["Tfa"] = false
 		if _, ok := userInfo["Tfa"]; ok {
@@ -303,6 +309,7 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		userBasicInfo["Setting"] = setting
 		userBasicInfo["Uid"] = uid
 		userInfo["Uid"] = uid
+		userBasicInfo["LocalKey"] = localKey
 
 		//timeCreated := userInfo["CreatedAt"].(int64)
 		//tokeExpTime := time.Now().Unix() + int64(24*60*60-5)
@@ -1238,10 +1245,11 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 		}()
 
 		go func() {
+			createLoanReminder(uid, int64(1), int64(activatedAt))
 			// TEST
-			if userInfo["Email"].(string) == "huynt580@gmail.com" {
-				createLoanReminder(uid, int64(1), int64(activatedAt))
-			}
+			// if userInfo["Email"].(string) == "huynt580@gmail.com" {
+			// 	createLoanReminder(uid, int64(1), int64(activatedAt))
+			// }
 		}()
 
 		GinRespond(c, http.StatusOK, SUCCESS, "")
@@ -1273,6 +1281,42 @@ func (h UserHandler) SaveUserData() gin.HandlerFunc {
 			"TotalGRX":   input.TotalGRX,
 			"OpenOrders": input.OpenOrders,
 		}
+		_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), accountData, firestore.MergeAll)
+		if err != nil {
+			log.Printf(uid+": Set accountData error %v\n", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
+			return
+		}
+
+		GinRespond(c, http.StatusOK, SUCCESS, "")
+	}
+}
+
+func (h UserHandler) SaveEnSecretKeyData() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		var input struct {
+			EnSecretKey string `json:"enSecretKey"`
+			Salt        string `json:"salt"`
+		}
+		err := c.BindJSON(&input)
+		if err != nil {
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Can not parse json input data")
+			return
+		}
+
+		uid := c.GetString(UID)
+		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+		if userInfo == nil {
+			GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Invalid user name or password")
+			return
+		}
+
+		accountData := map[string]interface{}{
+			"EnSecretKey":   input.EnSecretKey,
+			"SecretKeySalt": input.Salt,
+		}
+
 		_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), accountData, firestore.MergeAll)
 		if err != nil {
 			log.Printf(uid+": Set accountData error %v\n", err)
@@ -1396,6 +1440,13 @@ func (h UserHandler) GetUserInfo() gin.HandlerFunc {
 			GinRespond(c, http.StatusOK, EMAIL_NOT_EXIST, "Account does not exist.")
 			return
 		}
+		token := c.GetString("Token")
+		tokenCache := h.apiContext.Cache.client.Get(token)
+
+		localKey, err := tokenCache.Result()
+		if err != nil {
+			log.Println("Can not get token in cache:", err)
+		}
 		res := make(map[string]interface{})
 		res["Tfa"] = false
 		if _, ok := userInfo["Tfa"]; ok {
@@ -1425,6 +1476,8 @@ func (h UserHandler) GetUserInfo() gin.HandlerFunc {
 		res["Uid"] = uid
 		res["errCode"] = SUCCESS
 		res["PublicKey"] = userInfo["PublicKey"]
+		res["LocalKey"] = localKey
+
 		c.JSON(http.StatusOK, res)
 	}
 }
@@ -1908,9 +1961,10 @@ func (h UserHandler) Federation() gin.HandlerFunc {
 func (h UserHandler) TxVerify() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var request struct {
-			Ledger int64  `json:"ledger"`
-			Action string `json:"action"`
-			Algo   string `json:"algo,omitempty"`
+			Ledger int64                  `json:"ledger"`
+			Action string                 `json:"action"`
+			Algo   string                 `json:"algo,omitempty"`
+			Data   map[string]interface{} `json:"data,omitempty"`
 		}
 
 		err := c.BindJSON(&request)
@@ -1919,12 +1973,12 @@ func (h UserHandler) TxVerify() gin.HandlerFunc {
 			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Error can not parse input data")
 			return
 		}
-
+		log.Println("request: ", request)
 		uid := c.GetString(UID)
 		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
 		url := h.apiContext.Config.HorizonUrl + fmt.Sprintf("ledgers/%d/payments", request.Ledger)
 		log.Println("url payment:", url)
-		_, _, amount, err := GetLedgerInfo(url, userInfo["PublicKey"].(string), h.apiContext.Config.XlmLoanerAddress)
+		from, to, amount, err := GetLedgerInfo(url, userInfo["PublicKey"].(string), h.apiContext.Config.XlmLoanerAddress)
 		if err != nil {
 			log.Printf("Can not query ledger %d. Error: %v. Will re-try\n", request.Ledger, err)
 			// re-try
@@ -1941,10 +1995,10 @@ func (h UserHandler) TxVerify() gin.HandlerFunc {
 				return
 			}
 		}
-		log.Println("amount:", amount)
+		log.Println("amount:", from, to, amount)
 		switch request.Action {
 		case "payoff":
-			if amount >= 2.0001 {
+			if to == h.apiContext.Config.XlmLoanerAddress && amount >= 2.1 {
 				// Set IsLoan to true
 				_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{"LoanPaidStatus": 2}, firestore.MergeAll)
 				if err != nil {
@@ -1952,11 +2006,64 @@ func (h UserHandler) TxVerify() gin.HandlerFunc {
 					GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
 					return
 				}
-				log.Println("set isloan:")
+				log.Println("isloan:")
+				_, _, err = stellar.RemoveSigner(from, h.apiContext.Config.XlmLoanerSeed)
+				if err != nil {
+					log.Println("Can not remove signer", err)
+				}
 				GinRespond(c, http.StatusOK, SUCCESS, "")
 				return
 			} else {
 				log.Println("not set isloan:")
+				GinRespond(c, http.StatusOK, TX_FAIL, "Transaction is invalid")
+			}
+		case "buying":
+			if to == h.apiContext.Config.SuperAdminAddress {
+				// send fund from super admin account to 'from' account
+				// Set price
+				var grxPrice, grxAmount, xlmAmount float64
+				var ok bool
+				grxPrice, ok = request.Data["grxPrice"].(float64)
+				if !ok {
+					log.Println("Can not get grx price", err)
+					GinRespond(c, http.StatusOK, TX_FAIL, "")
+					return
+				}
+				grxAmount, ok = request.Data["grxAmount"].(float64)
+				if !ok {
+					log.Println("Can not get grxAmount", err)
+					GinRespond(c, http.StatusOK, TX_FAIL, "")
+					return
+				}
+				xlmAmount, ok = request.Data["xlmAmount"].(float64)
+				if !ok {
+					log.Println("Can not get xlmAmount", err)
+					GinRespond(c, http.StatusOK, TX_FAIL, "")
+					return
+				}
+
+				log.Println("grxXlmPrice, grxAmount, xlmAmount: ", grxPrice, grxAmount, xlmAmount)
+
+				if grxPrice < h.apiContext.Config.SellingPrice {
+					GinRespond(c, http.StatusOK, PRICE_LOWER_LIMIT, "")
+					return
+				}
+
+				if amount != xlmAmount {
+					GinRespond(c, http.StatusOK, PRICE_LOWER_LIMIT, "")
+					log.Println("tx PRICE_LOWER_LIMIT")
+					return
+				}
+
+				_, _, err = stellar.SendAsset(from, grxAmount, h.apiContext.Config.SuperAdminSeed,
+					build.CreditAsset{Code: h.apiContext.Config.AssetCode, Issuer: h.apiContext.Config.IssuerAddress}, "")
+				if err != nil {
+					GinRespond(c, http.StatusOK, TX_FAIL, "")
+					// Need to store txid and account information for checking
+				} else {
+					log.Println("tx success")
+					GinRespond(c, http.StatusOK, SUCCESS, "")
+				}
 			}
 		case "open":
 			// userInfo, _ := GetUserByField(h.apiContext.Store, "PublicKey", q)
@@ -1971,6 +2078,6 @@ func (h UserHandler) TxVerify() gin.HandlerFunc {
 		case "close":
 
 		}
-		GinRespond(c, http.StatusOK, INVALID_CODE, "Can not parse ledger information")
+		//GinRespond(c, http.StatusOK, INVALID_CODE, "Can not parse ledger information")
 	}
 }

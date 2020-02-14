@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"bitbucket.org/grayll/grayll.io-user-app-back-end/api"
@@ -27,12 +28,23 @@ func main() {
 	asset := assets.Asset{Code: config.AssetCode, IssuerAddress: config.IssuerAddress}
 
 	//spew.Dump(config)
+	superAdminAddress := os.Getenv("SUPER_ADMIN_ADDRESS")
+	superAdminSeed := os.Getenv("SUPER_ADMIN_SEED")
+	sellingPrice := os.Getenv("SELLING_PRICE")
+	sellingPercent := os.Getenv("SELLING_PERCENT")
 
 	if config.IsMainNet {
 		config.IsMainNet = true
 		store, err = GetFsClient(false)
 		if err != nil {
 			log.Fatalln("main: GetFsClient error: ", err)
+		}
+		if superAdminAddress != "" && superAdminSeed != "" {
+			config.SuperAdminAddress = superAdminAddress
+			config.SuperAdminSeed = superAdminSeed
+			config.SellingPrice, _ = strconv.ParseFloat(sellingPrice, 64)
+			config.SellingPercent, _ = strconv.Atoi(sellingPercent)
+			log.Println("ENV:", config.SuperAdminAddress, config.SellingPrice, config.SellingPercent)
 		}
 	} else {
 		config.IsMainNet = false
@@ -60,7 +72,7 @@ func SetupRouter(appContext *api.ApiContext) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Logger())
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*", "app.grayll.io"},
+		AllowOrigins:     []string{"https://app.grayll.io", "http://127.0.0.1:8081", "http://127.0.0.1:4200"},
 		AllowMethods:     []string{"POST, GET, OPTIONS, PUT, DELETE"},
 		AllowHeaders:     []string{"Authorization", "Origin", "Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -68,7 +80,7 @@ func SetupRouter(appContext *api.ApiContext) *gin.Engine {
 		// AllowOriginFunc: func(origin string) bool {
 		// 	return origin == "https://github.com"
 		// },
-		MaxAge: 12 * time.Hour,
+		MaxAge: 24 * time.Hour,
 	}))
 	//router.Use(cors.Default())
 	router.Use(gin.Recovery())
@@ -113,10 +125,14 @@ func SetupRouter(appContext *api.ApiContext) *gin.Engine {
 		v1.POST("/users/sendRevealSecretToken", userHandler.SendRevealSecretToken())
 		v1.POST("/users/validatePhone", userHandler.ValidatePhone())
 		v1.POST("/users/saveUserData", userHandler.SaveUserData())
+		v1.POST("/users/saveEnSecretKeyData", userHandler.SaveEnSecretKeyData())
 
 		v1.POST("/users/getUserInfo", userHandler.GetUserInfo())
 		v1.POST("/users/GetFramesData", userHandler.GetFramesData())
+		v1.GET("/users/GetFramesDataGet/:limit/:coins/:frame", userHandler.GetFramesDataGet())
+
 		v1.POST("/users/GetDashBoardInfo", userHandler.GetDashBoardInfo())
+		v1.GET("/users/GetDashBoardInfoGet/:coins", userHandler.GetDashBoardInfoGet())
 		v1.POST("/users/Renew", userHandler.Renew())
 
 		v1.POST("/users/MakeTransaction", userHandler.MakeTransaction())

@@ -9,7 +9,10 @@ import (
 	//build "github.com/stellar/go/txnbuild"
 	//"github.com/stellar/go/build"
 
+	"log"
+
 	stellar "github.com/huyntsgs/stellar-service"
+	"github.com/huyntsgs/stellar-service/assets"
 	//"github.com/stellar/go/clients/horizonclient"
 )
 
@@ -76,6 +79,7 @@ func main() {
 
 	/*bl, err := stellar.GetAssetBalance(dest, "GRXT")
 	log.Println("GetAssetBalance:receipt:balance", bl)
+	*/
 
 	res1, res2, err := assets.SendAsset(asset, dest, float64(1000), issuerSeed, "init")
 	log.Println("SendAsset:", res1, res2, err)
@@ -84,7 +88,7 @@ func main() {
 		log.Println("GetAssetBalance:err", err)
 	} else {
 		log.Println("GetAssetBalance:receipt:balance:1 ", bl)
-	}*/
+	}
 
 }
 

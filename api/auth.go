@@ -39,9 +39,9 @@ func Authorize(jwtTool *jwttool.JwtToolkit) gin.HandlerFunc {
 		if token.Valid {
 			// Set claimInfo to conext for using in backward router
 			claims := token.Claims.(jwt.MapClaims)
-			//log.Printf("[Authorize]- claims: ", claims)
 			if _, ok := claims["uid"]; ok {
 				c.Set("Uid", claims["uid"].(string))
+				c.Set("Token", token.Raw)
 			} else {
 				GinRespond(c, http.StatusUnauthorized, TOKEN_INVALID, "")
 				return
