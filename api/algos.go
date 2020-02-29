@@ -676,10 +676,9 @@ func (h UserHandler) GetDashBoardInfoGet() gin.HandlerFunc {
 		mt := new(sync.Mutex)
 		db := make(map[string]interface{}, 0)
 
-		fmt.Printf("got input data: %v\n", input)
 		coins := strings.Split(input.Coins, ",")
 		wg := new(sync.WaitGroup)
-		wg.Add(3)
+		wg.Add(len(coins))
 		// Get dashboard data
 		for _, pair := range coins {
 			go func(pairstr string) {

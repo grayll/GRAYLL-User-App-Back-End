@@ -51,5 +51,11 @@ grayll@redis-server:~$ redis-cli
 gcloud config set project grayll-app-f3f3f3
 gcloud compute scp ./streaming redis-server:~
 gcloud compute scp ./trade redis-server:~
+gcloud compute scp ./grayll-grz-arkady-firebase-adminsdk-9q3s2-3fb5715c06.json redis-server:~
+
+sudo systemctl daemon-reload
+sudo systemctl start trade
+sudo systemctl stop trade
+
 gcloud compute scp ~/go/src/bitbucket.org/grayll/grayll.io-user-app-back-end/streaming redis-server:~
 gcloud compute scp ~/go/src/bitbucket.org/grayll/grayll.io-user-app-back-end/streaming/config1.json redis-server:~

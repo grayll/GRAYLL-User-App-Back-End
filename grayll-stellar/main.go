@@ -1,20 +1,16 @@
 package main
 
-import (
+//"testing"
 
-	//"testing"
+//"github.com/stellar/go/assets"
 
-	//"github.com/stellar/go/assets"
+//build "github.com/stellar/go/txnbuild"
+//"github.com/stellar/go/build"
 
-	//build "github.com/stellar/go/txnbuild"
-	//"github.com/stellar/go/build"
-
-	"log"
-
-	stellar "github.com/huyntsgs/stellar-service"
-	"github.com/huyntsgs/stellar-service/assets"
-	//"github.com/stellar/go/clients/horizonclient"
-)
+//"log"
+//stellar "github.com/huyntsgs/stellar-service"
+//"github.com/huyntsgs/stellar-service/assets"
+//"github.com/stellar/go/clients/horizonclient"
 
 // issuerSeed := "SCH3R5ONBEKEBD22FNFCCQRAAJHC7X5L7XMETEYUJ7HQQDMSJL3OMCRE" => GRXT
 // issuerAddress = GAKXWUADYNO67NQ6ET7PT2DSLE5QGGDTNZZRESXCWWYYA2UCLOYT7AKR
@@ -48,7 +44,7 @@ func main() {
 	// //log.Println("recipient address:", recipient.Seed())
 	// log.Println("issuer address:", issuer.Address())
 
-	stellar.SetupParams(float64(1000), false)
+	//stellar.SetupParams(float64(1000), false)
 
 	// bl, err := stellar.GetNativeBalance(issuer.Address())
 	// if err != nil {
@@ -81,14 +77,14 @@ func main() {
 	log.Println("GetAssetBalance:receipt:balance", bl)
 	*/
 
-	res1, res2, err := assets.SendAsset(asset, dest, float64(1000), issuerSeed, "init")
-	log.Println("SendAsset:", res1, res2, err)
-	bl, err = stellar.GetAssetBalance(dest, "GRXT")
-	if err != nil {
-		log.Println("GetAssetBalance:err", err)
-	} else {
-		log.Println("GetAssetBalance:receipt:balance:1 ", bl)
-	}
+	// res1, res2, err := assets.SendAsset(asset, dest, float64(1000), issuerSeed, "init")
+	// log.Println("SendAsset:", res1, res2, err)
+	// bl, err = stellar.GetAssetBalance(dest, "GRXT")
+	// if err != nil {
+	// 	log.Println("GetAssetBalance:err", err)
+	// } else {
+	// 	log.Println("GetAssetBalance:receipt:balance:1 ", bl)
+	// }
 
 }
 

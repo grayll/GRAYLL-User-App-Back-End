@@ -2006,11 +2006,14 @@ func (h UserHandler) TxVerify() gin.HandlerFunc {
 					GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
 					return
 				}
-				log.Println("isloan:")
+
 				_, _, err = stellar.RemoveSigner(from, h.apiContext.Config.XlmLoanerSeed)
 				if err != nil {
 					log.Println("Can not remove signer", err)
 				}
+
+				// remove from sendgrid
+
 				GinRespond(c, http.StatusOK, SUCCESS, "")
 				return
 			} else {

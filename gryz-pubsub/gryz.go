@@ -9,6 +9,11 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
+	"context"
+	"fmt"
+	"io"
+	"runtime"
+
 	"cloud.google.com/go/pubsub"
 )
 
@@ -34,6 +39,53 @@ func main() {
 	router.Run(":" + port)
 }
 
+func pullMsgsConcurrenyControl(w io.Writer, projectID, subID string) error {
+	// projectID := "my-project-id"
+	// subID := "my-sub"
+	ctx := context.Background()
+	client, err := pubsub.NewClient(ctx, projectID)
+	if err != nil {
+		return fmt.Errorf("pubsub.NewClient: %v", err)
+	}
+	defer client.Close()
+
+	sub := client.Subscription(subID)
+	// Must set ReceiveSettings.Synchronous to false (or leave as default) to enable
+	// concurrency settings. Otherwise, NumGoroutines will be set to 1.
+	sub.ReceiveSettings.Synchronous = false
+	// NumGoroutines is the number of goroutines sub.Receive will spawn to pull messages concurrently.
+	sub.ReceiveSettings.NumGoroutines = runtime.NumCPU()
+
+	// Receive messages for 10 seconds.
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	// Create a channel to handle messages to as they come in.
+	cm := make(chan *pubsub.Message)
+	// Handle individual messages in a goroutine.
+	go func() {
+		for {
+			select {
+			case msg := <-cm:
+				fmt.Fprintf(w, "Got message :%q\n", string(msg.Data))
+				msg.Ack()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	// Receive blocks until the context is cancelled or an error occurs.
+	err = sub.Receive(ctx, func(ctx context.Context, msg *pubsub.Message) {
+		cm <- msg
+	})
+	if err != nil {
+		return fmt.Errorf("Receive: %v", err)
+	}
+	close(cm)
+
+	return nil
+}
 func SetupRouter(appContext *AppContext) *gin.Engine {
 	//gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
