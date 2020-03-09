@@ -60,6 +60,9 @@ func (cache *RedisCache) SetPublicKey(uid, publicKey string) (bool, error) {
 func (cache *RedisCache) GetUidFromPublicKey(publicKey string) (string, error) {
 	return cache.client.HGet(publicKey, UIDC).Result()
 }
+func (cache *RedisCache) GetPublicKeyFromUid(Uid string) (string, error) {
+	return cache.client.HGet(Uid, PublicKey).Result()
+}
 
 // Notice cache
 func (cache *RedisCache) SetNotice(uid, cacheType string, value bool) (bool, error) {
