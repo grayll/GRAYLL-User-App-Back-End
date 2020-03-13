@@ -15,6 +15,8 @@ import (
 	"encoding/json"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stellar/go/clients/horizonclient"
+	"github.com/stellar/go/protocols/horizon/operations"
 	//"bitbucket.org/grayll/grayll.io-user-app-back-end/utils"
 )
 
@@ -64,7 +66,24 @@ func ParseLedgerData(url string) (*LedgerPayment, error) {
 	return &ledger, nil
 
 }
+func ParsePaymentFromTxHash(txHash string, client *horizonclient.Client) ([]operations.Payment, error) {
+	opRequest := horizonclient.OperationRequest{ForTransaction: txHash}
+	ops, err := client.Operations(opRequest)
 
+	payments := make([]operations.Payment, 0)
+	if err != nil {
+		return payments, err
+	}
+	for _, record := range ops.Embedded.Records {
+		log.Println(record)
+		payment, ok := record.(operations.Payment)
+		if ok {
+			payments = append(payments, payment)
+		}
+
+	}
+	return payments, nil
+}
 func GetLedgerInfo(url, publicKey, xlmLoaner string) (string, string, float64, error) {
 	//"https://horizon-testnet.stellar.org/ledgers/1072717/payments"
 	em, err := ParseLedgerData(url)

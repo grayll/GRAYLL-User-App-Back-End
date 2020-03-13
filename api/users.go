@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base32"
 	"encoding/json"
+	"strconv"
 
 	//"encoding/json"
 	"fmt"
@@ -1962,6 +1963,7 @@ func (h UserHandler) TxVerify() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var request struct {
 			Ledger int64                  `json:"ledger"`
+			TxHash string                 `json:"txHash"`
 			Action string                 `json:"action"`
 			Algo   string                 `json:"algo,omitempty"`
 			Data   map[string]interface{} `json:"data,omitempty"`
@@ -1976,25 +1978,55 @@ func (h UserHandler) TxVerify() gin.HandlerFunc {
 		log.Println("request: ", request)
 		uid := c.GetString(UID)
 		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
-		url := h.apiContext.Config.HorizonUrl + fmt.Sprintf("ledgers/%d/payments", request.Ledger)
-		log.Println("url payment:", url)
-		from, to, amount, err := GetLedgerInfo(url, userInfo["PublicKey"].(string), h.apiContext.Config.XlmLoanerAddress)
+		payments, err := ParsePaymentFromTxHash(request.TxHash, stellar.GetHorizonClient())
 		if err != nil {
-			log.Printf("Can not query ledger %d. Error: %v. Will re-try\n", request.Ledger, err)
-			// re-try
-			for i := 0; i < 3; i++ {
-				time.Sleep(1000)
-				_, _, amount, err = GetLedgerInfo(url, userInfo["PublicKey"].(string), h.apiContext.Config.XlmLoanerAddress)
-				if err == nil {
-					break
-				}
-			}
+			time.Sleep(500)
+			payments, err = ParsePaymentFromTxHash(request.TxHash, stellar.GetHorizonClient())
+		}
+		if len(payments) == 0 {
 			if err != nil {
-				log.Printf("Can not query ledger %d. Error: %v. Afer re-try three times\n", request.Ledger, err)
+				log.Printf("Can not query payment from tx hash %s. Error: %v. Afer re-try three times\n", request.TxHash, err)
 				GinRespond(c, http.StatusOK, INVALID_CODE, "Can not parse ledger information")
 				return
 			}
 		}
+		hasPayment := false
+		var from, to string
+		var amount float64 = 0
+		for _, payment := range payments {
+			if payment.From == userInfo["PublicKey"].(string) {
+				hasPayment = true
+				from = payment.From
+				to = payment.To
+				amount, _ = strconv.ParseFloat(payment.Amount, 64)
+				break
+			}
+		}
+		if !hasPayment {
+			log.Printf("Can not query ledger %s. Error: %v. Afer re-try three times\n", request.TxHash, err)
+			GinRespond(c, http.StatusOK, INVALID_CODE, "Can not parse tx hash not belong to user")
+			return
+		}
+
+		// url := h.apiContext.Config.HorizonUrl + fmt.Sprintf("ledgers/%d/payments", request.Ledger)
+		// log.Println("url payment:", url)
+		// from, to, amount, err := GetLedgerInfo(url, userInfo["PublicKey"].(string), h.apiContext.Config.XlmLoanerAddress)
+		// if err != nil {
+		// 	log.Printf("Can not query ledger %d. Error: %v. Will re-try\n", request.Ledger, err)
+		// 	// re-try
+		// 	for i := 0; i < 3; i++ {
+		// 		time.Sleep(1000)
+		// 		_, _, amount, err = GetLedgerInfo(url, userInfo["PublicKey"].(string), h.apiContext.Config.XlmLoanerAddress)
+		// 		if err == nil {
+		// 			break
+		// 		}
+		// 	}
+		// 	if err != nil {
+		// 		log.Printf("Can not query ledger %d. Error: %v. Afer re-try three times\n", request.Ledger, err)
+		// 		GinRespond(c, http.StatusOK, INVALID_CODE, "Can not parse ledger information")
+		// 		return
+		// 	}
+		// }
 		log.Println("amount:", from, to, amount)
 		switch request.Action {
 		case "payoff":
