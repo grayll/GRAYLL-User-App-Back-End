@@ -39,4 +39,5 @@ require (
 	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
 	google.golang.org/api v0.15.0
 	google.golang.org/genproto v0.0.0-20200117163144-32f20d992d24
+	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 )

@@ -363,7 +363,7 @@ func (h UserHandler) XlmLoanReminder() gin.HandlerFunc {
 
 				// Save to firestore
 				ctx := context.Background()
-				docRef := h.apiContext.Store.Collection("notices").Doc("wallet").Collection(uid).NewDoc()
+				docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
 				_, err = docRef.Set(ctx, notice)
 				if err != nil {
 					log.Println("SaveNotice error: ", err)

@@ -93,7 +93,7 @@ func (email *Email) GenResetPassword(firstName, url string, expiredInDays int) (
 				},
 			},
 			Outros: []string{
-				"Please notice that account activation link expires at " + timeExpire,
+				"Please notice that reset password link expires at " + timeExpire,
 				"If you didn’t request to reset your GRAYLL account password, you may ignore this email.",
 			},
 			Signature: "With gratitude",

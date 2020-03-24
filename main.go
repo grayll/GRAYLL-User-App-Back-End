@@ -24,7 +24,7 @@ func main() {
 	}
 	var store *firestore.Client
 
-	config := parseConfig("config.json")
+	config := parseConfig("config1.json")
 	asset := assets.Asset{Code: config.AssetCode, IssuerAddress: config.IssuerAddress}
 
 	//spew.Dump(config)
@@ -39,13 +39,23 @@ func main() {
 		if err != nil {
 			log.Fatalln("main: GetFsClient error: ", err)
 		}
-		if superAdminAddress != "" && superAdminSeed != "" {
+		if superAdminAddress != "" {
 			config.SuperAdminAddress = superAdminAddress
-			config.SuperAdminSeed = superAdminSeed
-			config.SellingPrice, _ = strconv.ParseFloat(sellingPrice, 64)
-			config.SellingPercent, _ = strconv.Atoi(sellingPercent)
-			log.Println("ENV:", config.SuperAdminAddress, config.SellingPrice, config.SellingPercent)
 		}
+
+		if superAdminSeed != "" {
+			config.SuperAdminSeed = superAdminSeed
+		}
+		sellingPriceF, _ := strconv.ParseFloat(sellingPrice, 64)
+		if sellingPriceF > 0 {
+			config.SellingPrice = sellingPriceF
+		}
+		sellingPercentF, _ := strconv.Atoi(sellingPercent)
+		if sellingPercentF > 0 && sellingPercentF <= 100 {
+			config.SellingPercent = sellingPercentF
+		}
+		log.Println("ENV:", config.SuperAdminAddress, config.SellingPrice, config.SellingPercent)
+
 	} else {
 		config.IsMainNet = false
 		store, err = GetFsClient(true)
@@ -139,6 +149,7 @@ func SetupRouter(appContext *api.ApiContext) *gin.Engine {
 
 		v1.POST("/phones/sendcode", phones.SendSms())
 		v1.POST("/phones/verifycode", phones.VerifyCode())
+		v1.POST("/users/ChangePassword", userHandler.ChangePassword())
 
 	}
 	return router

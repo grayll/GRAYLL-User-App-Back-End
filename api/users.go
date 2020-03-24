@@ -644,6 +644,10 @@ func (h UserHandler) UpdateReadNotices() gin.HandlerFunc {
 			WalletIds  []string `json:"walletIds"`
 			AlgoIds    []string `json:"algoIds"`
 			GeneralIds []string `json:"generalIds"`
+			UrGRZ      int64    `json:"urgrz,omitempty"`
+			UrGRY1     int64    `json:"urgry1,omitempty"`
+			UrGRY2     int64    `json:"urgry2,omitempty"`
+			UrGRY3     int64    `json:"urgry3,omitempty"`
 		}
 
 		err := c.BindJSON(&input)
@@ -668,17 +672,22 @@ func (h UserHandler) UpdateReadNotices() gin.HandlerFunc {
 			}
 		}
 		if len(input.AlgoIds) > 0 {
-			for _, id := range input.WalletIds {
+			for _, id := range input.AlgoIds {
 				h.apiContext.Store.Doc("notices/algo/"+uid+"/"+id).Set(ctx, map[string]interface{}{
 					"isRead": true,
 				}, firestore.MergeAll)
 			}
-			cnt := 0 - len(input.AlgoIds)
-			_, err := h.apiContext.Store.Doc("users_meta/"+uid).Update(ctx, []firestore.Update{
-				{Path: "UrAlgo", Value: firestore.Increment(cnt)},
-			})
+
 			if err != nil {
 				log.Println("SaveNotice update error: ", err)
+				return
+			}
+			log.Println("Input:", input)
+			_, err := h.apiContext.Store.Doc("users_meta/"+uid).Set(ctx, map[string]interface{}{
+				"UrGRZ": input.UrGRZ, "UrGRY1": input.UrGRY1, "UrGRY2": input.UrGRY2, "UrGRY3": input.UrGRY3,
+			}, firestore.MergeAll)
+			if err != nil {
+				log.Println("SaveNotice un read notice error: ", err)
 				return
 			}
 		}
@@ -1040,6 +1049,87 @@ func (h UserHandler) SendEmailResetPwd() gin.HandlerFunc {
 		})
 	}
 }
+func (h UserHandler) ResetPassword1() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var input struct {
+			OobCode     string `json:"oobCode"`
+			NewPassword string `json:"newPassword"`
+			EnSecretKey string `json:"enSecretKey,omitempty"`
+			Salt        string `json:"salt,omitempty"`
+		}
+
+		err := c.BindJSON(&input)
+		if err != nil {
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Can not parse json input data")
+			return
+		}
+
+		log.Println("ResetPassword: info: ", input)
+		// Validate user data
+		if govalidator.IsNull(input.OobCode) || govalidator.IsNull(input.NewPassword) {
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Input data is invalid")
+			return
+		}
+
+		itemData := utils.DecryptItem(h.apiContext.Jwt.PrivateKey, input.OobCode)
+		if itemData == "" {
+			GinRespond(c, http.StatusOK, INVALID_CODE, "Invalid code")
+			return
+		}
+
+		userInfo, uid := GetUserByField(h.apiContext.Store, "Email", itemData)
+		if userInfo == nil {
+			GinRespond(c, http.StatusOK, EMAIL_NOT_EXIST, "Email account is not registered yet")
+			return
+		}
+
+		docSs, err := h.apiContext.Store.Doc("resetpwd/" + uid).Get(context.Background())
+		if err != nil {
+			log.Printf("can not get resetpwd token: %v\n", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can get resetpwd")
+			return
+		}
+
+		if resetpwdToken, ok := docSs.Data()["token"]; ok {
+			if resetpwdToken.(string) != input.OobCode {
+				log.Println("Reset pwd token invalid")
+				GinRespond(c, http.StatusOK, INVALID_CODE, "Reset token invalid")
+				return
+			}
+		} else {
+			log.Println("Reset pwd token invalid")
+			GinRespond(c, http.StatusOK, INVALID_CODE, "Reset token invalid")
+		}
+
+		hash, err := utils.DerivePassphrase(input.NewPassword, 32)
+		if err != nil {
+			log.Printf("ResetPassword error %v\n", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not register right now")
+			return
+		}
+
+		_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{
+			"HashPassword":  hash,
+			"EnSecretKey":   input.EnSecretKey,
+			"SecretKeySalt": input.Salt,
+		}, firestore.MergeAll)
+		if err != nil {
+			log.Printf("AddUserData:Add error 1%v\n", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not register right now")
+			return
+		}
+		// Send mail reset password successfully
+		go func() {
+			mail.SendMailResetPwdSuccess(userInfo["Email"].(string), userInfo["Name"].(string), "GRAYLL | Reset Password Successfully",
+				[]string{
+					"Your password has been reset successfully.",
+					"If you didn’t request and approve your GRAYLL account password reset, please contact us immediately!",
+					"support@grayll.io",
+				})
+		}()
+		GinRespond(c, http.StatusOK, SUCCESS, "")
+	}
+}
 func (h UserHandler) ResetPassword() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input struct {
@@ -1098,7 +1188,9 @@ func (h UserHandler) ResetPassword() gin.HandlerFunc {
 		}
 
 		_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{
-			"HashPassword": hash,
+			"HashPassword":  hash,
+			"EnSecretKey":   "",
+			"SecretKeySalt": "",
 		}, firestore.MergeAll)
 		if err != nil {
 			log.Printf("AddUserData:Add error 1%v\n", err)
@@ -1107,9 +1199,102 @@ func (h UserHandler) ResetPassword() gin.HandlerFunc {
 		}
 		// Send mail reset password successfully
 		go func() {
-			mail.SendMailResetPwdSuccess(userInfo["Email"].(string), userInfo["Name"].(string), "GRAYLL | Reset Password Successfully",
+			mail.SendMailResetPwdSuccess(userInfo["Email"].(string), userInfo["Name"].(string), "GRAYLL | Reset Password Successful",
 				[]string{
 					"Your password has been reset successfully.",
+					"If you didn’t request and approve your GRAYLL account password reset, please contact us immediately!",
+					"support@grayll.io",
+				})
+		}()
+		GinRespond(c, http.StatusOK, SUCCESS, "")
+	}
+}
+
+func (h UserHandler) ChangePassword() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var input struct {
+			Password    string `json:"password"`
+			NewPassword string `json:"newPassword"`
+		}
+
+		err := c.BindJSON(&input)
+		if err != nil {
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Can not parse json input data")
+			return
+		}
+
+		log.Println("ResetPassword: info: ", input)
+		// Validate user data
+		if govalidator.IsNull(input.Password) || govalidator.IsNull(input.NewPassword) {
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Input data is invalid")
+			return
+		}
+		// itemData := utils.DecryptItem(h.apiContext.Jwt.PrivateKey, input.OobCode)
+		// if itemData == "" {
+		// 	GinRespond(c, http.StatusOK, INVALID_CODE, "Invalid code")
+		// 	return
+		// }
+
+		// userInfo, uid := GetUserByField(h.apiContext.Store, "Email", itemData)
+		// if userInfo == nil {
+		// 	GinRespond(c, http.StatusOK, EMAIL_NOT_EXIST, "Email account is not registered yet")
+		// 	return
+		// }
+
+		// docSs, err := h.apiContext.Store.Doc("resetpwd/" + uid).Get(context.Background())
+		// if err != nil {
+		// 	log.Printf("can not get resetpwd token: %v\n", err)
+		// 	GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can get resetpwd")
+		// 	return
+		// }
+
+		// if resetpwdToken, ok := docSs.Data()["token"]; ok {
+		// 	if resetpwdToken.(string) != input.OobCode {
+		// 		log.Println("Reset pwd token invalid")
+		// 		GinRespond(c, http.StatusOK, INVALID_CODE, "Reset token invalid")
+		// 		return
+		// 	}
+		// } else {
+		// 	log.Println("Reset pwd token invalid")
+		// 	GinRespond(c, http.StatusOK, INVALID_CODE, "Reset token invalid")
+		// }
+
+		uid := c.GetString(UID)
+		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+		if userInfo == nil {
+			GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Invalid user name or password")
+			return
+		}
+		// Check password
+		ret, err := utils.VerifyPassphrase(input.Password, userInfo["HashPassword"].(string))
+		if !ret || err != nil {
+			log.Println(uid + ": Current password is not matched")
+			GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Invalid user name or password")
+			return
+		}
+
+		hash, err := utils.DerivePassphrase(input.NewPassword, 32)
+		if err != nil {
+			log.Printf("ResetPassword error %v\n", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not register right now")
+			return
+		}
+
+		_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{
+			"HashPassword":  hash,
+			"EnSecretKey":   "",
+			"SecretKeySalt": "",
+		}, firestore.MergeAll)
+		if err != nil {
+			log.Printf("AddUserData:Add error 1%v\n", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not change password right now")
+			return
+		}
+		// Send mail reset password successfully
+		go func() {
+			mail.SendMailResetPwdSuccess(userInfo["Email"].(string), userInfo["Name"].(string), "GRAYLL | Change Password Successful",
+				[]string{
+					"Your password has been changed successfully.",
 					"If you didn’t request and approve your GRAYLL account password reset, please contact us immediately!",
 					"support@grayll.io",
 				})

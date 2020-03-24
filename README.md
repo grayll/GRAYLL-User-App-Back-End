@@ -7,11 +7,15 @@ gcloud config set project grayll-app-f3f3f3
 
 gcloud builds submit --tag gcr.io/grayll-app-f3f3f3/grayll-app
 
-gcloud beta run deploy --image gcr.io/grayll-app-f3f3f3/grayll-app --platform managed --set-env-vars SUPER_ADMIN_ADDRESS=,SUPER_ADMIN_SEED=,SELLING_PRICE=,SELLING_PERCENT=
+gcloud beta run deploy --image gcr.io/grayll-app-f3f3f3/grayll-app --platform managed --set-env-vars SELLING_PRICE=0.3,SUPER_ADMIN_ADDRESS=,SUPER_ADMIN_SEED=,SELLING_PERCENT=
 
 ## Federation project
 gcloud config set project grayll-federation
 gcloud functions deploy Query --runtime go111 --trigger-http
+
+## Copy stellar horizon
+gcloud compute scp ./stellar-core.cfg stellar-node:~
+gcloud compute scp ./horizon stellar-node:~
 
 ## Cloud task
 gcloud tasks queues update xlm-loan-reminder --max-attempts=2
