@@ -1400,7 +1400,8 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 
 		// Set PublicAddress to cache
 		go func() {
-			_, err = h.apiContext.Cache.SetPublicKey(input.PublicKey, uid)
+			_, err = h.apiContext.Cache.SetPublicKey(uid, input.PublicKey)
+			//_, err = h.apiContext.Cache.SetPublicKey(input.PublicKey, uid)
 			if err != nil {
 				log.Printf(uid+": SetPublicKey cache error %v\n", err)
 			}
@@ -1416,18 +1417,11 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 			}
 
 			// set user meta data
-			// _, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(),
-			// 	map[string]interface{}{"UrWallet": 0, "UrAlgo": 0, "UrGeneral": 0, "OpenOrders": 0, "OpenOrdersGRX": 0, "OpenOrdersXLM": 0})
-			// if err != nil {
-			// 	log.Println(uid+": Set users_meta data error %v\n", err)
-			// }
-
-			// _, err = h.apiContext.Cache.SetNotices(uid, "IpConfirm", "1", "MulSignature", "1", "AppGeneral", "1", "AppWallet", "1",
-			// 	"AppAlgo", "1", "MailGeneral", "1", "MailWallet", "1", "MailAlgo", "1")
-			// if err != nil {
-			// 	log.Printf(uid+": SetNotice cache error %v\n", err)
-			// }
-
+			_, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(),
+				map[string]interface{}{"XLM": 2.1}, firestore.MergeAll)
+			if err != nil {
+				log.Println(uid+": Set users_meta data error %v\n", err)
+			}
 		}()
 
 		go func() {
