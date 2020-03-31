@@ -2170,6 +2170,7 @@ func (h UserHandler) TxVerify() gin.HandlerFunc {
 			}
 		}
 		hasPayment := false
+		paymentId := ""
 		var from, to string
 		var amount float64 = 0
 		for _, payment := range payments {
@@ -2178,6 +2179,7 @@ func (h UserHandler) TxVerify() gin.HandlerFunc {
 				from = payment.From
 				to = payment.To
 				amount, _ = strconv.ParseFloat(payment.Amount, 64)
+				paymentId = payment.ID
 				break
 			}
 		}
@@ -2235,6 +2237,7 @@ func (h UserHandler) TxVerify() gin.HandlerFunc {
 			if to == h.apiContext.Config.SuperAdminAddress {
 				// send fund from super admin account to 'from' account
 				// Set price
+
 				var grxPrice, grxAmount, xlmAmount float64
 				var ok bool
 				grxPrice, ok = request.Data["grxPrice"].(float64)
@@ -2252,6 +2255,18 @@ func (h UserHandler) TxVerify() gin.HandlerFunc {
 				xlmAmount, ok = request.Data["xlmAmount"].(float64)
 				if !ok {
 					log.Println("Can not get xlmAmount", err)
+					GinRespond(c, http.StatusOK, TX_FAIL, "")
+					return
+				}
+				grxUsd, ok := request.Data["grxUsd"].(float64)
+				if !ok {
+					log.Println("Can not get grxUsd", err)
+					GinRespond(c, http.StatusOK, TX_FAIL, "")
+					return
+				}
+				totalUsd, ok := request.Data["totalUsd"].(float64)
+				if !ok {
+					log.Println("Can not get totalUsd", err)
 					GinRespond(c, http.StatusOK, TX_FAIL, "")
 					return
 				}
@@ -2278,6 +2293,34 @@ func (h UserHandler) TxVerify() gin.HandlerFunc {
 					log.Println("tx success")
 					GinRespond(c, http.StatusOK, SUCCESS, "")
 				}
+
+				// Save to trade collection
+				data := map[string]interface{}{
+					"time":     time.Now().Unix(),
+					"type":     "BUY",
+					"asset":    "GRX",
+					"amount":   grxAmount, //
+					"xlmp":     grxPrice,
+					"totalxlm": xlmAmount, //
+					"priceusd": grxUsd,
+					"totalusd": totalUsd,
+					"offerId":  paymentId,
+				}
+
+				docRef := h.apiContext.Store.Collection("trades").Doc("users").Collection(uid).NewDoc()
+				_, err = docRef.Set(context.Background(), data)
+				if err != nil {
+					log.Println("[ERROR] SaveNotice: ", err)
+					return
+				}
+				data["id"] = docRef.ID
+				data["uid"] = uid
+				_, err = h.apiContext.OrderIndex.SaveObject(data)
+				if err != nil {
+					log.Println("[ERROR] Algolia OrderIndex.SaveObject: ", err)
+					return
+				}
+
 			}
 		case "open":
 			// userInfo, _ := GetUserByField(h.apiContext.Store, "PublicKey", q)

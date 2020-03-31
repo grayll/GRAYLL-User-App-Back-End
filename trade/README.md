@@ -56,3 +56,8 @@ gcloud compute scp ./grayll-grz-arkady-firebase-adminsdk-9q3s2-3fb5715c06.json r
 sudo systemctl daemon-reload
 sudo systemctl start trade
 sudo systemctl stop trade
+sudo systemctl stop streaming
+sudo systemctl start streaming
+
+sudo cp /home/bc/trade .
+sudo cp /home/bc/streaming .

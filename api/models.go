@@ -3,6 +3,7 @@ package api
 import (
 	jwttool "bitbucket.org/grayll/grayll.io-user-app-back-end/jwt-tool"
 	"cloud.google.com/go/firestore"
+	"github.com/algolia/algoliasearch-client-go/v3/algolia/search"
 	"github.com/huyntsgs/stellar-service/assets"
 )
 
@@ -29,4 +30,6 @@ type ApiContext struct {
 	Cache  *RedisCache
 	Config *Config
 	Asset  assets.Asset
+	//AlgoliaClient *search.Client
+	OrderIndex *search.Index
 }

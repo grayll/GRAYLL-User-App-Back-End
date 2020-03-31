@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"cloud.google.com/go/firestore"
+	"github.com/algolia/algoliasearch-client-go/v3/algolia/search"
 	stellar "github.com/huyntsgs/stellar-service"
 	"github.com/huyntsgs/stellar-service/assets"
 )
@@ -66,8 +67,10 @@ func main() {
 	stellar.SetupParams(float64(1000), config.IsMainNet)
 	ttl, _ := time.ParseDuration("12h")
 	cache := api.NewRedisCache(ttl, config)
+	client := search.NewClient("BXFJWGU0RM", "ef746e2d654d89f2a32f82fd9ffebf9e")
+	algoliaOrderIndex := client.InitIndex("orders-ua")
 
-	appContext := &api.ApiContext{Store: store, Jwt: jwt, Cache: cache, Config: config, Asset: asset}
+	appContext := &api.ApiContext{Store: store, Jwt: jwt, Cache: cache, Config: config, Asset: asset, OrderIndex: algoliaOrderIndex}
 
 	router := SetupRouter(appContext)
 	port := os.Getenv("PORT")
@@ -134,7 +137,7 @@ func SetupRouter(appContext *api.ApiContext) *gin.Engine {
 		v1.POST("/users/verifyRevealSecretToken", userHandler.VerifyRevealSecretToken())
 		v1.POST("/users/sendRevealSecretToken", userHandler.SendRevealSecretToken())
 		v1.POST("/users/validatePhone", userHandler.ValidatePhone())
-		v1.POST("/users/saveUserData", userHandler.SaveUserData())
+		//v1.POST("/users/saveUserData", userHandler.SaveUserData())
 		v1.POST("/users/saveEnSecretKeyData", userHandler.SaveEnSecretKeyData())
 
 		v1.POST("/users/getUserInfo", userHandler.GetUserInfo())

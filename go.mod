@@ -13,7 +13,7 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
 	github.com/SherClockHolmes/webpush-go v1.1.0
-	github.com/algolia/algoliasearch-client-go/v3 v3.5.2
+	github.com/algolia/algoliasearch-client-go/v3 v3.6.0
 	github.com/antigloss/go v0.0.0-20200109080012-05d5d0918164
 	github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a
 	github.com/avct/uasurfer v0.0.0-20191028135549-26b5daa857f1
