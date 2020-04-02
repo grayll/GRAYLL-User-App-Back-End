@@ -264,9 +264,11 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		tokenStr, err := h.apiContext.Jwt.GenToken(uid, 24*60)
 		// localKey used by client to encrypt secret key and store encrypted secret key on local
 		localKey := randStr(32, "alphanum")
+		hashToken := Hash(tokenStr)
+
 		go func() {
 			// Set local key in redis, getUserInfo will get from redis cache
-			h.apiContext.Cache.client.Set(tokenStr, localKey, time.Hour*24)
+			h.apiContext.Cache.client.Set(hashToken, localKey, time.Hour*24)
 			h.apiContext.Store.Doc("users/"+uid).Set(ctx, map[string]interface{}{
 				"LoginTime": time.Now().Unix(),
 			}, firestore.MergeAll)
@@ -1621,7 +1623,8 @@ func (h UserHandler) GetUserInfo() gin.HandlerFunc {
 			return
 		}
 		token := c.GetString("Token")
-		tokenCache := h.apiContext.Cache.client.Get(token)
+		hashToken := Hash(token)
+		tokenCache := h.apiContext.Cache.client.Get(hashToken)
 
 		localKey, err := tokenCache.Result()
 		if err != nil {

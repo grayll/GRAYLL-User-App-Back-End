@@ -14,12 +14,18 @@ import (
 	//"os"
 	"encoding/json"
 
+	"crypto/sha256"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stellar/go/clients/horizonclient"
 	"github.com/stellar/go/protocols/horizon/operations"
-	//"bitbucket.org/grayll/grayll.io-user-app-back-end/utils"
 )
 
+func Hash(input string) string {
+	h := sha256.New()
+	h.Write([]byte(input))
+	return string(h.Sum(nil))
+}
 func GinRespond(c *gin.Context, status int, errCode, msg string) {
 	c.JSON(status, gin.H{
 		"errCode": errCode, "msg": msg,
