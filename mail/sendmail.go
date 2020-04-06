@@ -24,7 +24,7 @@ func NewEmailSerivce() *Email {
 			// Appears in header & footer of e-mails
 			Name:      "GRAYLL",
 			Link:      "https://grayll.io",
-			Copyright: `Copyright © 2019, GRAYLL. All Rights Reserved.`,
+			Copyright: `Copyright © 2020, GRAYLL. All Rights Reserved.`,
 			// 			Terms of Service | Privacy Policy`,
 			// Optional product logo
 			//Logo: "http://www.duchess-france.org/wp-content/uploads/2016/01/gopher.png",

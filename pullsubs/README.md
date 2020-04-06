@@ -29,3 +29,7 @@ Start the service with:
 $ sudo systemctl start pullsubscription
 $ sudo systemctl enable pullsubscription
 $ systemctl status pullsubscription
+
+- Max open files 
+ps aux | grep streaming
+cat /proc/23232/limits

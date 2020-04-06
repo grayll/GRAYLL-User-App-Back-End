@@ -138,6 +138,7 @@ func SetupRouter(appContext *api.ApiContext) *gin.Engine {
 		v1.POST("/users/sendRevealSecretToken", userHandler.SendRevealSecretToken())
 		v1.POST("/users/validatePhone", userHandler.ValidatePhone())
 		//v1.POST("/users/saveUserData", userHandler.SaveUserData())
+		v1.POST("/users/saveUserMetaData", userHandler.SaveUserMetaData())
 		v1.POST("/users/saveEnSecretKeyData", userHandler.SaveEnSecretKeyData())
 
 		v1.POST("/users/getUserInfo", userHandler.GetUserInfo())

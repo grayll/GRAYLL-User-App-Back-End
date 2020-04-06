@@ -1474,6 +1474,66 @@ func (h UserHandler) SaveUserData() gin.HandlerFunc {
 	}
 }
 
+func (h UserHandler) SaveUserMetaData() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var input struct {
+			TotalGRZCurrentPositionRoi   float64 `json:"total_grz_current_position_ROI_$"`
+			TotalGRZCurrentPositionValue float64 `json:"total_grz_current_position_value_$"`
+			TotalGRZOpenPositions        float64 `json:"total_grz_open_positions"`
+
+			TotalGRY1CurrentPositionRoi   float64 `json:"total_gry1_current_position_ROI_$"`
+			TotalGRY1CurrentPositionValue float64 `json:"total_gry1_current_position_value_$"`
+			TotalGRY1OpenPositions        float64 `json:"total_gry1_open_positions"`
+
+			TotalGRY2CurrentPositionRoi   float64 `json:"total_gry2_current_position_ROI_$"`
+			TotalGRY2CurrentPositionValue float64 `json:"total_gry2_current_position_value_$"`
+			TotalGRY2OpenPositions        float64 `json:"total_gry2_open_positions"`
+
+			TotalGRY3CurrentPositionRoi   float64 `json:"total_gry3_current_position_ROI_$"`
+			TotalGRY3CurrentPositionValue float64 `json:"total_gry3_current_position_value_$"`
+			TotalGRY3OpenPositions        float64 `json:"total_gry3_open_positions"`
+		}
+		err := c.BindJSON(&input)
+		if err != nil {
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Can not parse json input data")
+			return
+		}
+
+		uid := c.GetString(UID)
+		// userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+		// if userInfo == nil {
+		// 	GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Invalid user name or password")
+		// 	return
+		// }
+
+		accountData := map[string]interface{}{
+			"total_grz_current_position_ROI_$":   input.TotalGRZCurrentPositionRoi,
+			"total_grz_current_position_value_$": input.TotalGRZCurrentPositionValue,
+			"total_grz_open_positions":           input.TotalGRZOpenPositions,
+
+			"total_gry1_current_position_ROI_$":   input.TotalGRY1CurrentPositionRoi,
+			"total_gry1_current_position_value_$": input.TotalGRY1CurrentPositionValue,
+			"total_gry1_open_positions":           input.TotalGRY1OpenPositions,
+
+			"total_gry2_current_position_ROI_$":   input.TotalGRY2CurrentPositionRoi,
+			"total_gry2_current_position_value_$": input.TotalGRY2CurrentPositionValue,
+			"total_gry2_open_positions":           input.TotalGRY2OpenPositions,
+
+			"total_gry3_current_position_ROI_$":   input.TotalGRY3CurrentPositionRoi,
+			"total_gry3_current_position_value_$": input.TotalGRY3CurrentPositionValue,
+			"total_gry3_open_positions":           input.TotalGRY3OpenPositions,
+		}
+		_, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), accountData, firestore.MergeAll)
+		if err != nil {
+			log.Printf(uid+": Set accountData error %v\n", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
+			return
+		}
+
+		GinRespond(c, http.StatusOK, SUCCESS, "")
+	}
+}
+
 func (h UserHandler) SaveEnSecretKeyData() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
