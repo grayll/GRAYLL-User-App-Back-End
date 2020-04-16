@@ -314,6 +314,18 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		userInfo["Uid"] = uid
 		userBasicInfo["LocalKey"] = localKey
 
+		// check HMAC hex string for Intercom
+		_hmc := ""
+		if hmac, ok := userInfo["Hmac"]; !ok {
+			_hmc = Hmac("kFOLecggKkSgaWGn_dyoFzZyuY8wFtzkvcncIU-J", userInfo["Email"].(string))
+			userInfo["Hmac"] = _hmc
+			_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{
+				"Hmac": _hmc,
+			}, firestore.MergeAll)
+		} else {
+			_hmc = hmac.(string)
+		}
+
 		//timeCreated := userInfo["CreatedAt"].(int64)
 		//tokeExpTime := time.Now().Unix() + int64(24*60*60-5)
 		tokeExpTime := time.Now().Unix() + TokeExpiredTime
@@ -410,6 +422,7 @@ func (h UserHandler) Register() gin.HandlerFunc {
 
 		// Get IP of user at time registration
 		//input.Token = ""
+		hmc := Hmac("kFOLecggKkSgaWGn_dyoFzZyuY8wFtzkvcncIU-J", input.Email)
 		input.Federation = input.Email + "*grayll.io"
 		input.LoanPaidStatus = 0
 		input.Ip = utils.RealIP(c.Request)
@@ -423,6 +436,7 @@ func (h UserHandler) Register() gin.HandlerFunc {
 			return
 		}
 		input.HashPassword = hash
+		input.Hmac = hmc
 		docRef, _, err := h.apiContext.Store.Collection("users").Add(ctx, input)
 		if err != nil {
 			log.Printf("AddUserData:Add error %v\n", err)
@@ -430,6 +444,7 @@ func (h UserHandler) Register() gin.HandlerFunc {
 			return
 		}
 		uid := docRef.ID
+
 		encodeStr := utils.EncryptItem(h.apiContext.Jwt.PublicKey, input.Email)
 		if encodeStr == "" {
 			_, err = h.apiContext.Store.Doc("users/" + uid).Delete(ctx)
@@ -1529,6 +1544,8 @@ func (h UserHandler) SaveUserMetaData() gin.HandlerFunc {
 			GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
 			return
 		}
+		h.apiContext.Cache.client.MSet(uid+"_total_grz_open_positions", input.TotalGRZOpenPositions, uid+"_total_gry1_open_positions", input.TotalGRY1OpenPositions,
+			uid+"_total_gry2_open_positions", input.TotalGRY2OpenPositions, uid+"_total_gry3_open_positions", input.TotalGRY3OpenPositions)
 
 		GinRespond(c, http.StatusOK, SUCCESS, "")
 	}

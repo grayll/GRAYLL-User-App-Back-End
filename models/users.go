@@ -58,9 +58,9 @@ type UserInfo struct {
 	CreatedAt      int64    `json:"CreatedAt,omitempty"`
 	PublicKey      string   `json:"PublicKey,omitempty"`
 	LoanPaidStatus int      `json:"LoanPaidStatus,omitempty"`
-	//SecretKeySalt      string   `json:"SecretKeySalt,omitempty""`
-	Federation string `json:"Federation,omitempty"`
-	IsVerified bool   `json:"IsVerified,omitempty"`
+	Hmac           string   `json:"Hmac,omitempty""`
+	Federation     string   `json:"Federation,omitempty"`
+	IsVerified     bool     `json:"IsVerified,omitempty"`
 }
 type UserLogin struct {
 	Email    string `json:"email"`

@@ -14,7 +14,9 @@ import (
 	//"os"
 	"encoding/json"
 
+	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/hex"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stellar/go/clients/horizonclient"
@@ -25,6 +27,12 @@ func Hash(input string) string {
 	h := sha256.New()
 	h.Write([]byte(input))
 	return string(h.Sum(nil))
+}
+func Hmac(secret, key string) string {
+	hmc := hmac.New(sha256.New, []byte(secret))
+	hmc.Write([]byte(key))
+	enstr := hex.EncodeToString(hmc.Sum(nil))
+	return enstr
 }
 func GinRespond(c *gin.Context, status int, errCode, msg string) {
 	c.JSON(status, gin.H{
