@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"bitbucket.org/grayll/grayll.io-user-app-back-end/api"
@@ -24,8 +25,13 @@ func main() {
 		log.Fatal("Error loading rsa key")
 	}
 	var store *firestore.Client
-
-	config := parseConfig("config1.json")
+	prod := os.Getenv("PROD")
+	var config *api.Config
+	if prod == "1" {
+		config = parseConfig("config1.json")
+	} else {
+		config = parseConfig("config.json")
+	}
 	asset := assets.Asset{Code: config.AssetCode, IssuerAddress: config.IssuerAddress}
 
 	//spew.Dump(config)
@@ -79,7 +85,43 @@ func main() {
 	}
 	router.Run(":" + port)
 }
+func CheckAllowedCorApi(reqURL string) bool {
+	// if strings.Contains(reqURL, "/users/Renew") || strings.Contains(reqURL, "/users/ReportData") || strings.Contains(reqURL, "/warmup") {
+	// 	return true
+	// }
+	log.Println("reqURL:", reqURL)
+	if strings.Contains(reqURL, "/users/ReportData") || strings.Contains(reqURL, "/warmup") {
+		return true
+	}
+	return false
+}
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if CheckAllowedCorApi(c.Request.URL.String()) {
+			log.Println("allow *")
+			c.Writer.Header().Set("Access-Control-Allow-Original", "https://app.grayll.io")
+		} else {
+			log.Println("allow app.grayll.io", c.Request.Host)
+			//c.Writer.Header().Set("Access-Control-Allow-Original", "https://app.grayll.io")
+			// if strings.Contains(c.Request.Host, "app.grayll.io") {
+			// 	c.Writer.Header().Set("Access-Control-Allow-Original", "https://app.grayll.io")
+			// } else {
+			// 	c.Writer.Header().Set("Access-Control-Allow-Original", "http://127.0.0.1:8080")
+			// }
+			c.Writer.Header().Set("Access-Control-Allow-Original", "http://127.0.0.1:4200")
+		}
 
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		c.Next()
+	}
+}
 func SetupRouter(appContext *api.ApiContext) *gin.Engine {
 	//gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
@@ -90,15 +132,16 @@ func SetupRouter(appContext *api.ApiContext) *gin.Engine {
 		AllowHeaders:     []string{"Authorization", "Origin", "Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
-		// AllowOriginFunc: func(origin string) bool {
-		// 	return origin == "https://github.com"
-		// },
+		AllowOriginFunc: func(origin string) bool {
+			log.Println("origin", origin)
+			return origin == "https://github.com"
+		},
 		MaxAge: 24 * time.Hour,
 	}))
+	//router.Use(CORSMiddleware())
 	//router.Use(cors.Default())
 	router.Use(gin.Recovery())
 
-	//productHandler := api.NewProductHandle(store)
 	userHandler := api.NewUserHandler(appContext)
 	phones := api.NewPhoneHandler(appContext)
 

@@ -38,7 +38,6 @@ func EncryptItem(publicKey *rsa.PublicKey, item string) string {
 		return ""
 	}
 	encodeStr := base64.URLEncoding.EncodeToString(code)
-	log.Println("EncryptItem: encodestr: ", encodeStr)
 	return encodeStr
 }
 func DecryptItem(privKey *rsa.PrivateKey, item string) string {

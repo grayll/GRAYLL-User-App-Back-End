@@ -43,6 +43,20 @@ func NewRedisCache(ttl time.Duration, config *Config) *RedisCache {
 	cache.ttl = ttl
 	return cache
 }
+func NewRedisCacheHost(ttl time.Duration, host, pass string, port int) *RedisCache {
+	// redisHost := os.Getenv("REDISHOST")
+	// redisPort := os.Getenv("REDISPORT")
+	cache := new(RedisCache)
+	cache.client = redis.NewClient(&redis.Options{
+		Addr:     fmt.Sprintf("%s:%d", host, port),
+		Password: pass,
+	})
+
+	pong, err := cache.client.Ping().Result()
+	fmt.Println("err:", pong, err)
+	cache.ttl = ttl
+	return cache
+}
 
 func (cache *RedisCache) SetUserSubs(uid, subs string) (bool, error) {
 	return cache.client.HSet(uid, UserSubs, subs).Result()

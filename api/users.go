@@ -6,6 +6,7 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"strconv"
+	"sync"
 
 	//"encoding/json"
 	"fmt"
@@ -48,7 +49,7 @@ const (
 	UID               = "Uid"
 	RevealSecretToken = "revealSecretToken"
 	TokeExpiredTime   = 24*60*60 - 2
-	//TokeExpiredTime = 8 * 60
+	//TokeExpiredTime = 5 * 60
 )
 
 type UserHandler struct {
@@ -107,7 +108,7 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		// gd.City = c.GetHeader("X-AppEngine-City")
 		// log.Println("GeoIp data:", gd)
 
-		currentIp := utils.RealIP(c.Request)
+		currentIp := c.ClientIP()
 		setting, ok := userInfo["Setting"].(map[string]interface{})
 		if !ok {
 			log.Println("Can not parse user setting. userInfo: ", userInfo)
@@ -117,106 +118,107 @@ func (h UserHandler) Login() gin.HandlerFunc {
 
 		city, country := utils.GetCityCountry("http://www.geoplugin.net/json.gp?ip=" + currentIp)
 		ua := uasurfer.Parse(c.Request.UserAgent())
-		//log.Println("ua:", ua)
+
 		agent := fmt.Sprintf("Device - %s, Browser - %s, OS - %s.", ua.DeviceType.StringTrimPrefix(), ua.Browser.Name.StringTrimPrefix(), ua.OS.Name.StringTrimPrefix())
-		res := make(chan int)
 		ctx := context.Background()
-		go func(res chan int) {
+
+		wg := new(sync.WaitGroup)
+		wg.Add(1)
+		isConfirmIp := false
+		go func() {
+			defer wg.Done()
 			ipConfirm := setting["IpConfirm"].(bool)
-			if currentIp != userInfo["Ip"].(string) && !ipConfirm {
-				secondIp, ok := userInfo["SecondIp"]
-				if ok && currentIp != secondIp.(string) {
-					// already set second ip, warning email
-					log.Println("Ip is not matched. Sent warning email")
-					res <- 0
-				}
-			} else if currentIp != userInfo["Ip"].(string) && ipConfirm {
-				secondIp, ok := userInfo["SecondIp"]
-				// secondIp still may not be set
-				if !ok || (ok && currentIp != secondIp.(string)) {
-					//if !ok || (ok && ipTemp == "") {
-					// Send confirm Ip mail
-					encodeStr := utils.EncryptItem(h.apiContext.Jwt.PublicKey, currentIp+"?"+uid)
-					if encodeStr == "" {
-						GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not login right now. Please try again later.")
-						res <- 1
-						return
-					}
+			if ipConfirm {
+				if currentIp != userInfo["Ip"].(string) {
+					secondIp, ok := userInfo["SecondIp"]
 
-					mores := map[string]string{
-						"loginTime": time.Now().Format("Mon, 02 Jan 2006 15:04:05 UTC"),
-						"ip":        currentIp,
-						"agent":     c.Request.UserAgent(),
-						"city":      city,
-						"country":   country,
-					}
-					err = mail.SendMail(userInfo["Email"].(string), userInfo["Name"].(string), ConfirmIpSub, ConfirmIp, encodeStr, h.apiContext.Config.Host, mores)
-					if err != nil {
-						GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not login right now. Please try again later.")
-						res <- 1
-						return
-					}
-					GinRespond(c, http.StatusOK, IP_CONFIRM, "Need to confirm Ip before login")
-
-					// Send app and push notices
-					title := "GRAYLL | IP Address Verification"
-					body := fmt.Sprintf("This IP address %s is unknown! An IP address verification link has been sent to your email.", currentIp)
-					notice := map[string]interface{}{
-						"type":    "general",
-						"title":   title,
-						"isRead":  false,
-						"body":    body,
-						"time":    time.Now().Unix(),
-						"vibrate": []int32{100, 50, 100},
-						"icon":    "https://app.grayll.io/favicon.ico",
-						"data": map[string]interface{}{
-							"url": h.apiContext.Config.Host + "/notifications/overview",
-						},
-					}
-
-					//ctx := context.Background()
-					log.Println("Start push notice")
-					go func() {
-						subs, err := h.apiContext.Cache.GetUserSubs(uid)
-						if err == nil && subs != "" {
-							//log.Println("subs: ", subs)
-							noticeData := map[string]interface{}{
-								"notification": notice,
-							}
-							webpushSub := webpush.Subscription{}
-							err = json.Unmarshal([]byte(subs), &webpushSub)
-							if err != nil {
-								log.Println("Unmarshal subscription from redis error: ", err)
-								return
-							}
-							err = PushNotice(noticeData, &webpushSub)
-							if err != nil {
-								log.Println("PushNotice error: ", err)
-								//return
-							}
+					// secondIp still may not be set
+					if !ok || (ok && currentIp != secondIp.(string)) {
+						// Send confirm Ip mail
+						encodeStr := utils.EncryptItem(h.apiContext.Jwt.PublicKey, currentIp+"?"+uid)
+						if encodeStr == "" {
+							GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not login right now. Please try again later.")
+							isConfirmIp = true
+							return
 						}
-					}()
 
-					// Save to firestore
-					docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
-					_, err = docRef.Set(ctx, notice)
-					if err != nil {
-						log.Println("SaveNotice error: ", err)
-						return
+						mores := map[string]string{
+							"loginTime": time.Now().Format("Mon, 02 Jan 2006 15:04:05 UTC"),
+							"ip":        currentIp,
+							"agent":     c.Request.UserAgent(),
+							"city":      city,
+							"country":   country,
+						}
+						err = mail.SendMail(userInfo["Email"].(string), userInfo["Name"].(string), ConfirmIpSub, ConfirmIp, encodeStr, h.apiContext.Config.Host, mores)
+						if err != nil {
+							GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not login right now. Please try again later.")
+							isConfirmIp = true
+							return
+						}
+						GinRespond(c, http.StatusOK, IP_CONFIRM, "Need to confirm Ip before login")
+
+						// Send app and push notices
+						title := "GRAYLL | IP Address Verification"
+						body := fmt.Sprintf("This IP address %s is unknown! An IP address verification link has been sent to your email.", currentIp)
+						notice := map[string]interface{}{
+							"type":    "general",
+							"title":   title,
+							"isRead":  false,
+							"body":    body,
+							"time":    time.Now().Unix(),
+							"vibrate": []int32{100, 50, 100},
+							"icon":    "https://app.grayll.io/favicon.ico",
+							"data": map[string]interface{}{
+								"url": h.apiContext.Config.Host + "/notifications/overview",
+							},
+						}
+
+						go func() {
+							subs, err := h.apiContext.Cache.GetUserSubs(uid)
+							if err == nil && subs != "" {
+								//log.Println("subs: ", subs)
+								noticeData := map[string]interface{}{
+									"notification": notice,
+								}
+								webpushSub := webpush.Subscription{}
+								err = json.Unmarshal([]byte(subs), &webpushSub)
+								if err != nil {
+									log.Println("Unmarshal subscription from redis error: ", err)
+									return
+								}
+								err = PushNotice(noticeData, &webpushSub)
+								if err != nil {
+									log.Println("PushNotice error: ", err)
+									//return
+								}
+							}
+						}()
+
+						// Save to firestore
+						docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
+						_, err = docRef.Set(ctx, notice)
+						if err != nil {
+							log.Println("SaveNotice error: ", err)
+							return
+						}
+						// Set unread general
+						_, err = h.apiContext.Store.Doc("users_meta/"+uid).Update(ctx, []firestore.Update{
+							{Path: "UrGeneral", Value: firestore.Increment(1)},
+						})
+						if err != nil {
+							log.Println("SaveNotice update error: ", err)
+							//return
+						}
+						isConfirmIp = true
 					}
-					// Set unread general
-					_, err = h.apiContext.Store.Doc("users_meta/"+uid).Update(ctx, []firestore.Update{
-						{Path: "UrGeneral", Value: firestore.Increment(1)},
-					})
-					if err != nil {
-						log.Println("SaveNotice update error: ", err)
-						//return
-					}
-					res <- 1
 				}
 			}
-			res <- 0
-		}(res)
+		}()
+		wg.Wait()
+		if isConfirmIp {
+			return
+		}
+
 		go func() {
 			h.apiContext.Cache.SetPublicKey(uid, userInfo["PublicKey"].(string))
 			settingFields := []string{"IpConfirm", "MulSignature", "AppGeneral", "AppWallet", "AppAlgo", "MailGeneral", "MailWallet", "MailAlgo"}
@@ -238,10 +240,6 @@ func (h UserHandler) Login() gin.HandlerFunc {
 				}
 			}
 		}()
-		val := <-res
-		if val == 1 {
-			return
-		}
 
 		// First login time, send mail notice
 		go func() {
@@ -384,7 +382,26 @@ func (h UserHandler) Login() gin.HandlerFunc {
 
 func (h UserHandler) Renew() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var input struct {
+			Password string
+		}
+		err := c.BindJSON(&input)
+		if err != nil {
+			log.Println("BindJSON err:", err)
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Can not parse json input")
+			return
+		}
 		uid := c.GetString("Uid")
+		if input.Password != "" {
+			// Check password
+			userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+			ret, err := utils.VerifyPassphrase(input.Password, userInfo["HashPassword"].(string))
+			if !ret || err != nil {
+				GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Invalid user name or password")
+				return
+			}
+		}
+
 		tokenStr, _ := h.apiContext.Jwt.GenToken(uid, 24*60)
 		tokeExpTime := time.Now().Unix() + TokeExpiredTime
 		h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), map[string]interface{}{"TokenExpiredTime": tokeExpTime}, firestore.MergeAll)
@@ -425,7 +442,7 @@ func (h UserHandler) Register() gin.HandlerFunc {
 		hmc := Hmac("kFOLecggKkSgaWGn_dyoFzZyuY8wFtzkvcncIU-J", input.Email)
 		input.Federation = input.Email + "*grayll.io"
 		input.LoanPaidStatus = 0
-		input.Ip = utils.RealIP(c.Request)
+		input.Ip = c.ClientIP()
 		input.CreatedAt = time.Now().Unix()
 		input.Setting = models.Settings{IpConfirm: true, MulSignature: false, AppAlgo: true, AppWallet: true, AppGeneral: true,
 			MailAlgo: true, MailWallet: true, MailGeneral: true}
@@ -1752,7 +1769,7 @@ func (h UserHandler) SendRevealSecretToken() gin.HandlerFunc {
 		}
 
 		revealToken := randStr(6, "alphanum")
-		log.Println("reveal token 1:", revealToken)
+
 		// Set token to database
 		_, err := h.apiContext.Store.Doc("resetpwd/"+uid).Set(context.Background(), map[string]interface{}{
 			"reavealtoken": revealToken,

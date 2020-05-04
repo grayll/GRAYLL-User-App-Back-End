@@ -7,7 +7,7 @@ gcloud config set project grayll-app-f3f3f3
 
 gcloud builds submit --tag gcr.io/grayll-app-f3f3f3/grayll-app &&
 
-gcloud beta run deploy --image gcr.io/grayll-app-f3f3f3/grayll-app --platform managed --set-env-vars SELLING_PRICE=0.3,SUPER_ADMIN_ADDRESS=,SUPER_ADMIN_SEED=,SELLING_PERCENT=
+gcloud beta run deploy --image gcr.io/grayll-app-f3f3f3/grayll-app --platform managed --set-env-vars SELLING_PRICE=0.3,PROD=1,SUPER_ADMIN_ADDRESS=,SUPER_ADMIN_SEED=,SELLING_PERCENT=
 
 ## Federation project
 gcloud config set project grayll-federation
@@ -31,6 +31,9 @@ superAdminAddress := os.Getenv("SUPER_ADMIN_ADDRESS")
 	sellingPrice := os.Getenv("SELLING_PRICE")
 	sellingPercent := os.Getenv("SELLING_PERCENT")
 
+gcloud compute ssl-certificates describe horizon-lb-ssl \
+    --global \
+    --format="get(name,managed.status)"
 
 gcloud run services update [SERVICE] --set-env-vars KEY1=VALUE1,KEY2=VALUE2
 gcloud run deploy [SERVICE] --image gcr.io/[PROJECT-ID]/[IMAGE] --update-env-vars KEY1=VALUE1,KEY2=VALUE2
