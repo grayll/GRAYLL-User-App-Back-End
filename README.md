@@ -20,6 +20,8 @@ gcloud compute scp ./horizon horizon-node:~
 ## Cloud task
 gcloud tasks queues update xlm-loan-reminder --max-attempts=2
 
+gcloud tasks queues create data-report --max-attempts=7200 --min-backoff=300s --max-backoff=3600s --max-doublings=16 --max-retry-duration=432000s --max-dispatches-per-second=500 --max-concurrent-dispatches=5000
+
 ## Set cloud run env
 --set-env-vars
 --update-env-vars

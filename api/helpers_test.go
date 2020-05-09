@@ -1,14 +1,60 @@
 package api
 
 import (
-	"log"
+	"fmt"
+	"io/ioutil"
+	"strings"
+
 	"testing"
+	"time"
 )
 
 func TestHmac(t *testing.T) {
-	hmc := Hmac("kFOLecggKkSgaWGn_dyoFzZyuY8wFtzkvcncIU-J", "14refejeereire")
-	log.Println(hmc)
+	// hmc := Hmac("kFOLecggKkSgaWGn_dyoFzZyuY8wFtzkvcncIU-J", "14refejeereire")
+	loc, _ := time.LoadLocation("Europe/Budapest")
+	now := time.Now().In(loc)
+	fmt.Println("ZONE : ", loc, " Time : ", now.Unix(), now.Hour())  // UTC
+	fmt.Println("Utc Time : ", time.Now().Unix(), time.Now().Hour()) // UTC
+
+	timeInUTC := time.Date(now.Year(), now.Month(), now.Day(), 11, 8, 0, 0, time.UTC)
+
+	fmt.Println("h : ", timeInUTC.Hour(), " m : ", timeInUTC.Minute(), "day", timeInUTC.Day()) // UTC
 }
+
+var zoneDirs = []string{
+	// Update path according to your OS
+	"/usr/share/zoneinfo/",
+	"/usr/share/lib/zoneinfo/",
+	"/usr/lib/locale/TZ/",
+}
+
+var zoneDir string
+
+// func main() {
+//     for _, zoneDir = range zoneDirs {
+//         ReadFile("")
+//     }
+// }
+
+func ReadFile(path string) {
+	files, _ := ioutil.ReadDir(zoneDir + path)
+	for _, f := range files {
+		if f.Name() != strings.ToUpper(f.Name()[:1])+f.Name()[1:] {
+			continue
+		}
+		if f.IsDir() {
+			ReadFile(path + "/" + f.Name())
+		} else {
+			fmt.Println((path + "/" + f.Name())[1:])
+		}
+	}
+}
+
+// func TestZone(t *testing.T) {
+// 	for _, zoneDir = range zoneDirs {
+// 		ReadFile("")
+// 	}
+// }
 
 // func TestParsePayment(t *testing.T) {
 // 	em, err := ParseLedgerData("https://horizon.stellar.org/ledgers/26871047/payments")

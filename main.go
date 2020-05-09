@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"strconv"
@@ -13,10 +14,12 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
+	cloudtasks "cloud.google.com/go/cloudtasks/apiv2"
 	"cloud.google.com/go/firestore"
 	"github.com/algolia/algoliasearch-client-go/v3/algolia/search"
 	stellar "github.com/huyntsgs/stellar-service"
 	"github.com/huyntsgs/stellar-service/assets"
+	"google.golang.org/api/option"
 )
 
 func main() {
@@ -33,13 +36,14 @@ func main() {
 		config = parseConfig("config.json")
 	}
 	asset := assets.Asset{Code: config.AssetCode, IssuerAddress: config.IssuerAddress}
+	var cloudTaskClient *cloudtasks.Client
 
 	//spew.Dump(config)
 	superAdminAddress := os.Getenv("SUPER_ADMIN_ADDRESS")
 	superAdminSeed := os.Getenv("SUPER_ADMIN_SEED")
 	sellingPrice := os.Getenv("SELLING_PRICE")
 	sellingPercent := os.Getenv("SELLING_PERCENT")
-
+	ctx := context.Background()
 	if config.IsMainNet {
 		config.IsMainNet = true
 		store, err = GetFsClient(false)
@@ -62,14 +66,17 @@ func main() {
 			config.SellingPercent = sellingPercentF
 		}
 		log.Println("ENV:", config.SuperAdminAddress, config.SellingPrice, config.SellingPercent)
-
+		cloudTaskClient, err = cloudtasks.NewClient(ctx)
 	} else {
 		config.IsMainNet = false
 		store, err = GetFsClient(true)
 		if err != nil {
 			log.Fatalln("main: GetFsClient error: ", err)
 		}
+		opt1 := option.WithCredentialsFile("./grayll-grz-arkady-528f3c71b2da.json")
+		cloudTaskClient, err = cloudtasks.NewClient(ctx, opt1)
 	}
+
 	stellar.SetupParams(float64(1000), config.IsMainNet)
 	ttl, _ := time.ParseDuration("12h")
 	cache := api.NewRedisCache(ttl, config)
@@ -77,6 +84,10 @@ func main() {
 	algoliaOrderIndex := client.InitIndex("orders-ua")
 
 	appContext := &api.ApiContext{Store: store, Jwt: jwt, Cache: cache, Config: config, Asset: asset, OrderIndex: algoliaOrderIndex}
+	if cloudTaskClient == nil {
+		log.Println("cloudTaskClient is nil")
+	}
+	appContext.CloudTaskClient = cloudTaskClient
 
 	router := SetupRouter(appContext)
 	port := os.Getenv("PORT")
@@ -159,6 +170,8 @@ func SetupRouter(appContext *api.ApiContext) *gin.Engine {
 	v1.POST("/accounts/xlmLoanReminder", userHandler.XlmLoanReminder())
 
 	v1.GET("/warmup", userHandler.Warmup())
+	v1.POST("/reportData", userHandler.ReportData())
+
 	v1.GET("/checkpw", userHandler.CheckPw())
 
 	// apis needs to authenticate
@@ -191,6 +204,8 @@ func SetupRouter(appContext *api.ApiContext) *gin.Engine {
 		v1.POST("/users/GetDashBoardInfo", userHandler.GetDashBoardInfo())
 		v1.GET("/users/GetDashBoardInfoGet/:coins", userHandler.GetDashBoardInfoGet())
 		v1.POST("/users/Renew", userHandler.Renew())
+
+		v1.POST("/users/saveReportSetting", userHandler.SaveReportSetting())
 
 		v1.POST("/users/MakeTransaction", userHandler.MakeTransaction())
 

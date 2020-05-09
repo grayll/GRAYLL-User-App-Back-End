@@ -11,14 +11,15 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	//"os"
 	"encoding/json"
+	"time"
 
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jinzhu/now"
 	"github.com/stellar/go/clients/horizonclient"
 	"github.com/stellar/go/protocols/horizon/operations"
 )
@@ -28,6 +29,76 @@ func Hash(input string) string {
 	h.Write([]byte(input))
 	return string(h.Sum(nil))
 }
+
+// TimeIn returns the time in UTC if the name is "" or "UTC".
+// It returns the local time if the name is "Local".
+// Otherwise, the name is taken to be a location name in
+// the IANA Time Zone database, such as "Africa/Lagos".
+func TimeIn(t time.Time, name string) (time.Time, error) {
+	loc, err := time.LoadLocation(name)
+	if err == nil {
+		t = t.In(loc)
+	}
+	return t, err
+}
+func NewDate(t time.Time, h, m int, local string) time.Time {
+	log.Println("NewDate-local:", local)
+	loc, _ := time.LoadLocation(local)
+	log.Println("NewDate-loc:", loc)
+	return time.Date(t.Year(), t.Month(), t.Day(), h, m, 0, 0, loc)
+}
+
+func BeginOfWeek(t time.Time, local string) (time.Time, error) {
+	location, _ := time.LoadLocation(local)
+
+	myConfig := &now.Config{
+		WeekStartDay: time.Monday,
+		TimeLocation: location,
+		TimeFormats:  []string{"2006-01-02 15:04:05"},
+	}
+
+	//t := time.Date(2013, 11, 18, 17, 51, 49, 123456789, time.Now().Location()) // // 2013-11-18 17:51:49.123456789 Mon
+	return myConfig.With(t).BeginningOfWeek(), nil
+}
+
+func BeginOfMonth(t time.Time, local string) (time.Time, error) {
+	location, _ := time.LoadLocation(local)
+
+	myConfig := &now.Config{
+		WeekStartDay: time.Monday,
+		TimeLocation: location,
+		TimeFormats:  []string{"2006-01-02 15:04:05"},
+	}
+
+	//t := time.Date(2013, 11, 18, 17, 51, 49, 123456789, time.Now().Location()) // // 2013-11-18 17:51:49.123456789 Mon
+	return myConfig.With(t).BeginningOfMonth(), nil
+}
+func BeginOfNextWeek(t time.Time, local string) (time.Time, error) {
+	location, _ := time.LoadLocation(local)
+
+	myConfig := &now.Config{
+		WeekStartDay: time.Monday,
+		TimeLocation: location,
+		TimeFormats:  []string{"2006-01-02 15:04:05"},
+	}
+
+	//t := time.Date(2013, 11, 18, 17, 51, 49, 123456789, time.Now().Location()) // // 2013-11-18 17:51:49.123456789 Mon
+	return myConfig.With(t).EndOfWeek().Add(time.Hour * 24 * 1), nil
+}
+
+func BeginOfNextMonth(t time.Time, local string) (time.Time, error) {
+	location, _ := time.LoadLocation(local)
+
+	myConfig := &now.Config{
+		WeekStartDay: time.Monday,
+		TimeLocation: location,
+		TimeFormats:  []string{"2006-01-02 15:04:05"},
+	}
+
+	//t := time.Date(2013, 11, 18, 17, 51, 49, 123456789, time.Now().Location()) // // 2013-11-18 17:51:49.123456789 Mon
+	return myConfig.With(t).EndOfMonth().Add(time.Hour * 24 * 1), nil
+}
+
 func Hmac(secret, key string) string {
 	hmc := hmac.New(sha256.New, []byte(secret))
 	hmc.Write([]byte(key))

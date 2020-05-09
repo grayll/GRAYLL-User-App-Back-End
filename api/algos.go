@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/mitchellh/mapstructure"
+
 	//"encoding/json"
 
 	"log"
@@ -27,6 +29,9 @@ import (
 	"google.golang.org/api/iterator"
 
 	cloudtasks "cloud.google.com/go/cloudtasks/apiv2"
+	//"github.com/mitchellh/mapstructure"
+	"github.com/fatih/structs"
+	//"github.com/jinzhu/now"
 	taskspb "google.golang.org/genproto/googleapis/cloud/tasks/v2"
 )
 
@@ -517,9 +522,7 @@ func createLoanReminder(uid string, orderId, activatedAt int64) {
 	queueId := "xlm-loan-reminder"
 	local := "us-central1"
 	url := "https://grayll-app-bqqlgbdjbq-uc.a.run.app/api/v1/accounts/xlmLoanReminder"
-	//svAccountEmail := "service-622069026410@gcp-sa-cloudtasks.iam.gserviceaccount.com"
 	svAccountEmail := "cloud-tasks-grayll-app@grayll-app-f3f3f3.iam.gserviceaccount.com"
-	//service-622069026410@gcp-sa-cloudtasks.iam.gserviceaccount.com
 	data := map[string]interface{}{
 		"uid":         uid,
 		"activatedAt": activatedAt,
@@ -556,6 +559,243 @@ func getScheduleTimeTest(orderId int64) int64 {
 		return (15*60*15 + 10*60*10 + 5*60*(orderId-25))
 	}
 	return 0
+}
+func (h UserHandler) SaveReportSetting() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var input ReportDataSetting
+
+		err := c.BindJSON(&input)
+		if err != nil {
+			log.Printf("[ERROR] unable to parse report data setting : %v", err)
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Update postion error")
+			return
+		}
+
+		setting := structs.Map(input)
+
+		uid := c.GetString("Uid")
+		ctx := context.Background()
+
+		userData, _ := h.apiContext.Store.Doc("users/" + uid).Get(ctx)
+		if _reportSetting, ok := userData.Data()["ReportSetting"]; ok {
+			reportSetting := _reportSetting.(map[string]interface{})
+			if freq, ok := reportSetting["Frequency"]; ok {
+				h.apiContext.Store.Doc("users/"+uid).Set(ctx, map[string]interface{}{"ReportSetting": setting}, firestore.MergeAll)
+				if freq.(string) != "None" {
+					// already schedule task running
+					log.Println("task already running")
+					GinRespond(c, http.StatusOK, SUCCESS, "")
+					return
+				}
+			}
+		} else {
+			h.apiContext.Store.Doc("users/"+uid).Set(ctx, map[string]interface{}{"ReportSetting": setting}, firestore.MergeAll)
+		}
+		if input.Frequency == "None" {
+			GinRespond(c, http.StatusOK, SUCCESS, "")
+		}
+		log.Println("input:", input)
+
+		current, err := TimeIn(time.Now(), input.TimeZone)
+		scheduleTime := NewDate(current, input.TimeHour, input.TimeMinute, input.TimeZone)
+
+		// calculate time to send report
+		switch input.Frequency {
+		case "Daily":
+			if current.Unix() > scheduleTime.Unix() {
+				scheduleTime = scheduleTime.Add(time.Hour * 24)
+			}
+			break
+		case "Weekly":
+			beginWeek, _ := BeginOfNextWeek(current, input.TimeZone)
+			scheduleTime = NewDate(beginWeek, input.TimeHour, input.TimeMinute, input.TimeZone)
+			break
+		case "Monthly":
+			beginMonth, _ := BeginOfNextMonth(current, input.TimeZone)
+			scheduleTime = NewDate(beginMonth, input.TimeHour, input.TimeMinute, input.TimeZone)
+			break
+		}
+		data := make(map[string]interface{})
+		data["UserId"] = uid
+		data["Time"] = scheduleTime.Unix()
+		log.Println("schedule time:", scheduleTime.Unix(), scheduleTime.Format("2012-11-01T22:08:41+00:00"))
+		h.ScheduleTask(data, scheduleTime.Unix(), h.apiContext.Config.DataReportUrl, h.apiContext.Config.DataReportQueueId)
+
+		GinRespond(c, http.StatusOK, SUCCESS, "")
+
+	}
+}
+func (h UserHandler) ReportData() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		ctx := context.Background()
+		setting := make(map[string]interface{})
+		err := c.BindJSON(&setting)
+
+		if err != nil {
+			log.Printf("[ERROR] unable to unmarshal GRZ update position request's body, error : %v", err)
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Update postion error")
+			return
+		}
+
+		uid := setting["UserId"].(string)
+		log.Println(setting)
+		userData, _ := GetUserByField(h.apiContext.Store, UID, uid)
+		if err != nil {
+			log.Printf("[ERROR] Can not get user info with user id: %s, %v\n", uid, err)
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Invalid user id")
+			return
+		}
+		reportSettingMap := make(map[string]interface{})
+		if _reportSettingMap, ok := userData["ReportSetting"]; ok {
+			reportSettingMap = _reportSettingMap.(map[string]interface{})
+			if freq, ok := reportSettingMap["Frequency"]; ok {
+				if freq.(string) == "None" {
+					// Not report anymore
+					GinRespond(c, http.StatusOK, SUCCESS, "")
+					return
+				}
+			}
+		} else {
+			GinRespond(c, http.StatusOK, SUCCESS, "")
+			return
+		}
+		var currReportSetting ReportDataSetting
+		err = mapstructure.Decode(reportSettingMap, &currReportSetting)
+
+		doc, err := h.apiContext.Store.Doc("users_meta/" + uid).Get(ctx)
+		if err != nil {
+			log.Printf("[ERROR] Can not get user meta with user id: %s, %v\n", uid, err)
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Invalid user id")
+			return
+		}
+		prices, err := h.apiContext.Store.Doc("price_update/794retePzavE19bTcMaH").Get(ctx)
+		if err != nil {
+			log.Printf("[ERROR] Can not get user meta with user id: %s, %v\n", uid, err)
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Invalid user id")
+			return
+		}
+		xlmusd := prices.Data()["xlmusd"].(float64)
+		grxusd := prices.Data()["grxusd"].(float64)
+
+		contents := GenDataReportMail(currReportSetting, doc.Data(), xlmusd, grxusd, int64(setting["Time"].(float64)))
+
+		title := `GRAYLL | Data Summary Report`
+		err = mail.SendNoticeMail(userData["Email"].(string), userData["Name"].(string), title, contents)
+		if err != nil {
+			log.Println("SendNoticeMail error: ", err)
+		}
+		//push notice
+		content := ""
+		for i, s := range contents {
+			if i == 0 {
+				content = s
+			} else {
+				content = content + ". " + s
+			}
+		}
+		notice := map[string]interface{}{
+			"title":  title,
+			"body":   content,
+			"isRead": false,
+			"time":   setting["Time"].(float64),
+		}
+		docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
+		_, err = docRef.Set(ctx, notice)
+		log.Println("content:", content)
+
+		current, err := TimeIn(time.Now(), currReportSetting.TimeZone)
+		scheduleTime := NewDate(current, currReportSetting.TimeHour, currReportSetting.TimeMinute, currReportSetting.TimeZone)
+		// calculate time to send report
+		switch currReportSetting.Frequency {
+		case "Daily":
+			scheduleTime = scheduleTime.Add(time.Hour * 24)
+			break
+		case "Weekly":
+			beginWeek, _ := BeginOfNextWeek(current, currReportSetting.TimeZone)
+			scheduleTime = NewDate(beginWeek, currReportSetting.TimeHour, currReportSetting.TimeMinute, currReportSetting.TimeZone)
+			break
+		case "Monthly":
+			beginMonth, _ := BeginOfNextMonth(current, currReportSetting.TimeZone)
+			scheduleTime = NewDate(beginMonth, currReportSetting.TimeHour, currReportSetting.TimeMinute, currReportSetting.TimeZone)
+			break
+		}
+		data := make(map[string]interface{})
+		data["UserId"] = uid
+		data["Time"] = scheduleTime.Unix()
+		log.Println("schedule time:", scheduleTime.Unix(), time.Unix(scheduleTime.Unix(), 0).Format("2012-11-01T22:08:41+00:00"))
+		h.ScheduleTask(setting, scheduleTime.Unix(), h.apiContext.Config.DataReportUrl, h.apiContext.Config.DataReportQueueId)
+
+		GinRespond(c, http.StatusOK, SUCCESS, "")
+
+		c.JSON(http.StatusOK, gin.H{
+			"errCode": SUCCESS,
+		})
+
+	}
+}
+
+// createHTTPTask creates a new task with a HTTP target then adds it to a Queue.
+func (h UserHandler) createUpdateTask(message []byte, execTime int64, taskURL, queueId string) (*taskspb.Task, error) {
+
+	// Create a new Cloud Tasks client instance.
+	// See https://godoc.org/cloud.google.com/go/cloudtasks/apiv2
+	ctx := context.Background()
+	// opt := option.WithCredentialsFile("grayll-grz-arkady-bda9949575fc.json")
+	// client, err := cloudtasks.NewClient(ctx, opt)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("NewClient: %v", err)
+	// }
+
+	// Build the Task queue path.
+	queuePath := fmt.Sprintf("projects/%s/locations/%s/queues/%s", h.apiContext.Config.ProjectId, h.apiContext.Config.LocationId, queueId)
+	ts := new(timestamp.Timestamp)
+	ts.Seconds = execTime
+
+	// Build the Task payload.
+	// https://godoc.org/google.golang.org/genproto/googleapis/cloud/tasks/v2#CreateTaskRequest
+	req := &taskspb.CreateTaskRequest{
+		Parent: queuePath,
+		Task: &taskspb.Task{
+			// https://godoc.org/google.golang.org/genproto/googleapis/cloud/tasks/v2#HttpRequest
+			MessageType: &taskspb.Task_HttpRequest{
+				HttpRequest: &taskspb.HttpRequest{
+					HttpMethod: taskspb.HttpMethod_POST,
+					Url:        taskURL,
+					AuthorizationHeader: &taskspb.HttpRequest_OidcToken{
+						OidcToken: &taskspb.OidcToken{
+							ServiceAccountEmail: h.apiContext.Config.ServiceAccountEmail,
+						},
+					},
+				},
+			},
+			ScheduleTime: ts,
+		},
+	}
+
+	// Add a payload message if one is present.
+	req.Task.GetHttpRequest().Body = message
+
+	createdTask, err := h.apiContext.CloudTaskClient.CreateTask(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("cloudtasks.CreateTask: %v", err)
+	}
+
+	return createdTask, nil
+}
+
+// UpdatePositionTask runs every minute to update the
+func (h UserHandler) ScheduleTask(data map[string]interface{}, scheduleTime int64, taskURL, queueId string) (*taskspb.Task, error) {
+	json, _ := json.Marshal(data)
+	task, err := h.createUpdateTask(json, scheduleTime, taskURL, queueId)
+	if err != nil {
+		log.Println("createHTTPTask error:", err)
+	} else {
+		log.Println("createHTTPTask schedule time:", task.GetScheduleTime())
+		log.Println("createHTTPTask task name:", task.GetName())
+	}
+	return task, err
+
 }
 
 // createHTTPTask creates a new task with a HTTP target then adds it to a Queue.
@@ -605,7 +845,135 @@ func createHTTPTask(projectID, locationID, queueID, url, serviceAccountEmail str
 
 	return createdTask, nil
 }
+func GenDataReportMail(reportSetting ReportDataSetting, data map[string]interface{}, xlmusd, grxusd float64, reportTime int64) []string {
 
+	log.Println(reportSetting)
+	log.Println(data)
+
+	contents := make([]string, 0)
+	contents = append(contents, []string{time.Unix(reportTime, 0).Format(`15:04 | 02-01-2006`), `Please find your scheduled GRAYLL Data Summary Report below`}...)
+
+	//If Wallet Balance has been selected
+	xlmBalance := float64(0)
+	grxBalance := float64(0)
+	walletBalance := float64(0)
+	switch (data["GRX"]).(type) {
+	case float64:
+		grxBalance = data["GRX"].(float64)
+	case int64:
+		grxBalance = float64(data["GRX"].(int64))
+	}
+	switch (data["XLM"]).(type) {
+	case float64:
+		xlmBalance = data["XLM"].(float64)
+	case int64:
+		xlmBalance = float64(data["XLM"].(int64))
+	}
+
+	walletBalance = xlmBalance*xlmusd + grxBalance*grxusd
+	if reportSetting.WalletBalance {
+		contents = append(contents, []string{
+			fmt.Sprintf(`Total Wallet Balance: %f $`, walletBalance),
+			fmt.Sprintf(`Total XLM Balance: %f XLM`, xlmBalance),
+			fmt.Sprintf(`Total XLM Balance: %f $`, xlmBalance*xlmusd),
+			fmt.Sprintf(`Total GRX Balance: %f GRX`, grxBalance),
+			fmt.Sprintf(`Total GRX Balance: %f $`, grxBalance*grxusd)}...)
+	}
+
+	//If Account Value has been selected by the user
+	if reportSetting.AccountValue {
+		total_grz_current_position_value := float64(0)
+		total_gry1_current_position_value := float64(0)
+		total_gry2_current_position_value := float64(0)
+		total_gry3_current_position_value := float64(0)
+		if value, ok := data["total_grz_current_position_value_$"]; ok {
+			total_grz_current_position_value = value.(float64)
+		}
+		if value, ok := data["total_gry1_current_position_value_$"]; ok {
+			total_gry1_current_position_value = value.(float64)
+		}
+		if value, ok := data["total_gry2_current_position_value_$"]; ok {
+			total_gry2_current_position_value = value.(float64)
+		}
+		if value, ok := data["total_gry3_current_position_value_$"]; ok {
+			total_gry3_current_position_value = value.(float64)
+		}
+
+		total := total_gry1_current_position_value + total_gry2_current_position_value + total_gry3_current_position_value + total_grz_current_position_value + walletBalance
+
+		contents = append(contents, fmt.Sprintf(`Total Account Value: %f $`, total))
+	}
+
+	//If Account Profit has been selected by the user
+	if reportSetting.AccountProfit {
+
+		total_gry1_current_position_ROI := float64(0)
+		if value, ok := data["total_gry1_current_position_ROI_$"]; ok {
+			total_gry1_current_position_ROI = value.(float64)
+		}
+		total_gry1_close_position_ROI := float64(0)
+		if value, ok := data["total_gry1_close_position_ROI_$"]; ok {
+			total_gry1_close_position_ROI = value.(float64)
+		}
+
+		total_gry2_current_position_ROI := float64(0)
+		if value, ok := data["total_gry2_current_position_ROI_$"]; ok {
+			total_gry2_current_position_ROI = value.(float64)
+		}
+		total_gry2_close_position_ROI := float64(0)
+		if value, ok := data["total_gry2_close_position_ROI_$"]; ok {
+			total_gry2_close_position_ROI = value.(float64)
+		}
+
+		total_gry3_current_position_ROI := float64(0)
+		if value, ok := data["total_gry3_current_position_ROI_$"]; ok {
+			total_gry3_current_position_ROI = value.(float64)
+		}
+		total_gry3_close_position_ROI := float64(0)
+		if value, ok := data["total_gry3_close_position_ROI_$"]; ok {
+			total_gry3_close_position_ROI = value.(float64)
+		}
+
+		total_grz_current_position_ROI := float64(0)
+		if value, ok := data["total_grz_current_position_ROI_$"]; ok {
+			total_grz_current_position_ROI = value.(float64)
+		}
+		total_grz_close_positions_ROI := float64(0)
+		if value, ok := data["total_grz_close_positions_ROI_$"]; ok {
+			total_grz_close_positions_ROI = value.(float64)
+		}
+		totalProfit := total_gry3_current_position_ROI + total_gry3_close_position_ROI + total_gry2_current_position_ROI +
+			total_gry2_close_position_ROI + total_gry1_current_position_ROI + total_gry1_close_position_ROI + total_grz_current_position_ROI + total_grz_close_positions_ROI
+		contents = append(contents, fmt.Sprintf(`Total Account Profits: %f $`, totalProfit))
+	}
+
+	//If Account Profit has been selected by the user
+	if reportSetting.OpenPosition {
+		total_gry1_open_positions := 0
+		if value, ok := data["total_gry1_open_positions"]; ok {
+			total_gry1_open_positions = int(value.(float64))
+		}
+		total_gry2_open_positions := 0
+		if value, ok := data["total_gry2_open_positions"]; ok {
+			total_gry2_open_positions = int(value.(float64))
+		}
+		total_gry3_open_positions := 0
+		if value, ok := data["total_gry3_open_positions"]; ok {
+			total_gry3_open_positions = int(value.(float64))
+		}
+		total_grz_open_positions := 0
+		if value, ok := data["total_grz_open_positions"]; ok {
+			total_grz_open_positions = int(value.(float64))
+		}
+		contents = append(contents,
+			[]string{fmt.Sprintf(`Total Open Positions: %d`, total_gry1_open_positions+total_gry2_open_positions+total_gry3_open_positions+total_grz_open_positions),
+				fmt.Sprintf(`GRY 1 | Open Algo Positions: %d`, total_gry1_open_positions),
+				fmt.Sprintf(`GRY 2 | Open Algo Positions: %d`, total_gry2_open_positions),
+				fmt.Sprintf(`GRY 3 | Open Algo Positions: %d`, total_gry3_open_positions),
+				fmt.Sprintf(`GRZ | Open Algo Positions: %d`, total_grz_open_positions)}...)
+	}
+	return contents
+}
 func (h UserHandler) Warmup() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
