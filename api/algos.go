@@ -847,11 +847,11 @@ func createHTTPTask(projectID, locationID, queueID, url, serviceAccountEmail str
 }
 func GenDataReportMail(reportSetting ReportDataSetting, data map[string]interface{}, xlmusd, grxusd float64, reportTime int64) []string {
 
-	log.Println(reportSetting)
-	log.Println(data)
-
+	// log.Println(reportSetting)
+	// log.Println(data)
+	timeLocal, _ := TimeIn(time.Unix(reportTime, 0), reportSetting.TimeZone)
 	contents := make([]string, 0)
-	contents = append(contents, []string{time.Unix(reportTime, 0).Format(`15:04 | 02-01-2006`), `Please find your scheduled GRAYLL Data Summary Report below`}...)
+	contents = append(contents, []string{timeLocal.Format(`15:04 | 02-01-2006`), `Please find your scheduled GRAYLL Data Summary Report below.`}...)
 
 	//If Wallet Balance has been selected
 	xlmBalance := float64(0)
@@ -873,11 +873,11 @@ func GenDataReportMail(reportSetting ReportDataSetting, data map[string]interfac
 	walletBalance = xlmBalance*xlmusd + grxBalance*grxusd
 	if reportSetting.WalletBalance {
 		contents = append(contents, []string{
-			fmt.Sprintf(`Total Wallet Balance: %f $`, walletBalance),
-			fmt.Sprintf(`Total XLM Balance: %f XLM`, xlmBalance),
-			fmt.Sprintf(`Total XLM Balance: %f $`, xlmBalance*xlmusd),
-			fmt.Sprintf(`Total GRX Balance: %f GRX`, grxBalance),
-			fmt.Sprintf(`Total GRX Balance: %f $`, grxBalance*grxusd)}...)
+			fmt.Sprintf(`Total Wallet Balance: $ %.6f`, walletBalance),
+			fmt.Sprintf(`Total XLM Balance: %.6f XLM`, xlmBalance),
+			fmt.Sprintf(`Total XLM Balance: $ %.6f`, xlmBalance*xlmusd),
+			fmt.Sprintf(`Total GRX Balance: %.6f GRX`, grxBalance),
+			fmt.Sprintf(`Total GRX Balance: $ %.6f`, grxBalance*grxusd)}...)
 	}
 
 	//If Account Value has been selected by the user
@@ -901,7 +901,7 @@ func GenDataReportMail(reportSetting ReportDataSetting, data map[string]interfac
 
 		total := total_gry1_current_position_value + total_gry2_current_position_value + total_gry3_current_position_value + total_grz_current_position_value + walletBalance
 
-		contents = append(contents, fmt.Sprintf(`Total Account Value: %f $`, total))
+		contents = append(contents, fmt.Sprintf(`Total Account Value: $ %.6f`, total))
 	}
 
 	//If Account Profit has been selected by the user
@@ -944,7 +944,7 @@ func GenDataReportMail(reportSetting ReportDataSetting, data map[string]interfac
 		}
 		totalProfit := total_gry3_current_position_ROI + total_gry3_close_position_ROI + total_gry2_current_position_ROI +
 			total_gry2_close_position_ROI + total_gry1_current_position_ROI + total_gry1_close_position_ROI + total_grz_current_position_ROI + total_grz_close_positions_ROI
-		contents = append(contents, fmt.Sprintf(`Total Account Profits: %f $`, totalProfit))
+		contents = append(contents, fmt.Sprintf(`Total Account Profits: $ %.6f`, totalProfit))
 	}
 
 	//If Account Profit has been selected by the user
@@ -966,7 +966,7 @@ func GenDataReportMail(reportSetting ReportDataSetting, data map[string]interfac
 			total_grz_open_positions = int(value.(float64))
 		}
 		contents = append(contents,
-			[]string{fmt.Sprintf(`Total Open Positions: %d`, total_gry1_open_positions+total_gry2_open_positions+total_gry3_open_positions+total_grz_open_positions),
+			[]string{fmt.Sprintf(`Total Open Algo Positions: %d`, total_gry1_open_positions+total_gry2_open_positions+total_gry3_open_positions+total_grz_open_positions),
 				fmt.Sprintf(`GRY 1 | Open Algo Positions: %d`, total_gry1_open_positions),
 				fmt.Sprintf(`GRY 2 | Open Algo Positions: %d`, total_gry2_open_positions),
 				fmt.Sprintf(`GRY 3 | Open Algo Positions: %d`, total_gry3_open_positions),
