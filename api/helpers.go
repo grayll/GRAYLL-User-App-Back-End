@@ -18,12 +18,33 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 
+	"github.com/NeverBounce/NeverBounceApi-Go"
+	"github.com/NeverBounce/NeverBounceApi-Go/models"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/now"
 	"github.com/stellar/go/clients/horizonclient"
 	"github.com/stellar/go/protocols/horizon/operations"
 )
 
+func VerifyEmailNeverBounce(neverBounceApiKey, email string) error {
+	client := neverbounce.New(neverBounceApiKey)
+	client.SetAPIVersion("v4.1")
+	singleResults, err := client.Single.Check(&nbModels.SingleCheckRequestModel{
+		Email:          email,
+		AddressInfo:    true,
+		CreditInfo:     true,
+		Timeout:        10,
+		HistoricalData: nbModels.HistoricalDataModel{RequestMetaData: 0},
+	})
+	if err != nil {
+		return err
+	}
+
+	if singleResults.Result != "valid" {
+		return errors.New("Invalid email address")
+	}
+	return nil
+}
 func Hash(input string) string {
 	h := sha256.New()
 	h.Write([]byte(input))

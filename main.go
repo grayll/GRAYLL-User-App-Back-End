@@ -11,8 +11,9 @@ import (
 	"bitbucket.org/grayll/grayll.io-user-app-back-end/api"
 	jwttool "bitbucket.org/grayll/grayll.io-user-app-back-end/jwt-tool"
 
-	"github.com/gin-contrib/cors"
+	//"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/huyntsgs/cors"
 
 	cloudtasks "cloud.google.com/go/cloudtasks/apiv2"
 	"cloud.google.com/go/firestore"
@@ -77,7 +78,7 @@ func main() {
 		cloudTaskClient, err = cloudtasks.NewClient(ctx, opt1)
 	}
 
-	stellar.SetupParams(float64(1000), config.IsMainNet)
+	stellar.SetupParam(float64(1000), config.IsMainNet, config.HorizonUrl)
 	ttl, _ := time.ParseDuration("12h")
 	cache := api.NewRedisCache(ttl, config)
 	client := search.NewClient("BXFJWGU0RM", "ef746e2d654d89f2a32f82fd9ffebf9e")
@@ -89,7 +90,7 @@ func main() {
 	}
 	appContext.CloudTaskClient = cloudTaskClient
 
-	router := SetupRouter(appContext)
+	router := SetupRouter(appContext, prod)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -106,51 +107,34 @@ func CheckAllowedCorApi(reqURL string) bool {
 	}
 	return false
 }
-func CORSMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if CheckAllowedCorApi(c.Request.URL.String()) {
-			log.Println("allow *")
-			c.Writer.Header().Set("Access-Control-Allow-Original", "https://app.grayll.io")
-		} else {
-			log.Println("allow app.grayll.io", c.Request.Host)
-			//c.Writer.Header().Set("Access-Control-Allow-Original", "https://app.grayll.io")
-			// if strings.Contains(c.Request.Host, "app.grayll.io") {
-			// 	c.Writer.Header().Set("Access-Control-Allow-Original", "https://app.grayll.io")
-			// } else {
-			// 	c.Writer.Header().Set("Access-Control-Allow-Original", "http://127.0.0.1:8080")
-			// }
-			c.Writer.Header().Set("Access-Control-Allow-Original", "http://127.0.0.1:4200")
-		}
 
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-		c.Next()
-	}
-}
-func SetupRouter(appContext *api.ApiContext) *gin.Engine {
+func SetupRouter(appContext *api.ApiContext, isProd string) *gin.Engine {
 	//gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Logger())
-	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"https://app.grayll.io", "http://127.0.0.1:8081", "http://127.0.0.1:4200"},
-		AllowMethods:     []string{"POST, GET, OPTIONS, PUT, DELETE"},
-		AllowHeaders:     []string{"Authorization", "Origin", "Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
-		AllowOriginFunc: func(origin string) bool {
-			log.Println("origin", origin)
-			return origin == "https://github.com"
-		},
-		MaxAge: 24 * time.Hour,
-	}))
-	//router.Use(CORSMiddleware())
-	//router.Use(cors.Default())
+	if isProd == "1" {
+		router.Use(cors.New(cors.Config{
+			AllowOrigins:     []string{"https://app.grayll.io", "http://127.0.0.1:4200"},
+			AllowMethods:     []string{"POST, GET, OPTIONS, PUT, DELETE"},
+			AllowHeaders:     []string{"Authorization", "Origin", "Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token"},
+			ExposeHeaders:    []string{"Content-Length"},
+			AllowCredentials: true,
+			AllowURLKeywords: []string{"warmup"},
+			MaxAge:           24 * time.Hour,
+		}))
+	} else {
+		router.Use(cors.New(cors.Config{
+			//AllowOrigins: []string{"https://app.grayll.io"},
+			AllowOrigins:     []string{"http://127.0.0.1:4200"},
+			AllowMethods:     []string{"POST, GET, OPTIONS, PUT, DELETE"},
+			AllowHeaders:     []string{"Authorization", "Origin", "Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token"},
+			ExposeHeaders:    []string{"Content-Length"},
+			AllowCredentials: true,
+			AllowURLKeywords: []string{"warmup", "federation"},
+			MaxAge:           24 * time.Hour,
+		}))
+	}
+
 	router.Use(gin.Recovery())
 
 	userHandler := api.NewUserHandler(appContext)

@@ -33,6 +33,7 @@ type Config struct {
 	SuperAdminSeed    string  `json:"superAdminSeed"`
 	SellingPrice      float64 `json:"sellingPrice"`
 	SellingPercent    int     `json:"sellingPercent"`
+	NeverBounceApiKey string  `json:"neverBounceApiKey"`
 }
 type ApiContext struct {
 	Store           *firestore.Client

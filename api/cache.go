@@ -1,7 +1,6 @@
 package api
 
 import (
-	//"errors"
 	"fmt"
 	"time"
 
@@ -95,9 +94,28 @@ func (cache *RedisCache) SetXLMPrice(price float64) (bool, error) {
 func (cache *RedisCache) GetXLMPrice() (string, error) {
 	return cache.client.HGet("prices", "xlmP").Result()
 }
+func (cache *RedisCache) GetXLMUsd() (float64, error) {
+	return cache.client.HGet("prices", "xlmP").Float64()
+}
 func (cache *RedisCache) SetGRXPrice(price float64) (bool, error) {
 	return cache.client.HSet("prices", "grxP", price).Result()
 }
 func (cache *RedisCache) GetGRXPrice() (string, error) {
 	return cache.client.HGet("prices", "grxP").Result()
+}
+func (cache *RedisCache) SetGRXUsd(price float64) (bool, error) {
+	return cache.client.HSet("prices", "grxUsd", price).Result()
+}
+func (cache *RedisCache) GetGRXUsd() (float64, error) {
+	return cache.client.HGet("prices", "grxUsd").Float64()
+}
+func (cache *RedisCache) SetFunc2LAS(las float64) (string, error) {
+	return cache.client.Set("LAS", las, 0).Result()
+}
+func (cache *RedisCache) GetFunc2LAS() (float64, error) {
+	las, err := cache.client.Get("LAS").Float64()
+	if err != nil {
+		return 0, err
+	}
+	return las, nil
 }

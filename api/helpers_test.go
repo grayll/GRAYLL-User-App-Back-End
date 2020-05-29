@@ -6,19 +6,24 @@ import (
 	"strings"
 
 	"testing"
-	"time"
+	//"time"
 )
 
+func TestVerifyEmail(t *testing.T) {
+	//VerifyEmailNeverBounce("private_f1db1a9eeccd5dd76347bf58596becf4", "huykbc@gmail.com")
+	VerifyEmailNeverBounce("private_f1db1a9eeccd5dd76347bf58596becf4", "huykbc1@gmail.com")
+}
+
 func TestHmac(t *testing.T) {
-	// hmc := Hmac("kFOLecggKkSgaWGn_dyoFzZyuY8wFtzkvcncIU-J", "14refejeereire")
-	loc, _ := time.LoadLocation("Europe/Budapest")
-	now := time.Now().In(loc)
-	fmt.Println("ZONE : ", loc, " Time : ", now.Unix(), now.Hour())  // UTC
-	fmt.Println("Utc Time : ", time.Now().Unix(), time.Now().Hour()) // UTC
+	// // hmc := Hmac("kFOLecggKkSgaWGn_dyoFzZyuY8wFtzkvcncIU-J", "14refejeereire")
+	// loc, _ := time.LoadLocation("Europe/Budapest")
+	// now := time.Now().In(loc)
+	// fmt.Println("ZONE : ", loc, " Time : ", now.Unix(), now.Hour())  // UTC
+	// fmt.Println("Utc Time : ", time.Now().Unix(), time.Now().Hour()) // UTC
 
-	timeInUTC := time.Date(now.Year(), now.Month(), now.Day(), 11, 8, 0, 0, time.UTC)
+	// timeInUTC := time.Date(now.Year(), now.Month(), now.Day(), 11, 8, 0, 0, time.UTC)
 
-	fmt.Println("h : ", timeInUTC.Hour(), " m : ", timeInUTC.Minute(), "day", timeInUTC.Day()) // UTC
+	// fmt.Println("h : ", timeInUTC.Hour(), " m : ", timeInUTC.Minute(), "day", timeInUTC.Day()) // UTC
 }
 
 var zoneDirs = []string{

@@ -430,7 +430,11 @@ func (h UserHandler) Register() gin.HandlerFunc {
 			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Input data is invalid")
 			return
 		}
-
+		err = VerifyEmailNeverBounce(h.apiContext.Config.NeverBounceApiKey, input.Email)
+		if err != nil {
+			GinRespond(c, http.StatusOK, EMAIL_INVALID, "Email address is invalid")
+			return
+		}
 		userInfo, _ := GetUserByField(h.apiContext.Store, "Email", input.Email)
 		if userInfo != nil {
 			GinRespond(c, http.StatusOK, EMAIL_IN_USED, "Email already registered")

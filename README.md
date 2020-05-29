@@ -3,10 +3,8 @@
 => go mod edit -replace=gopkg.in/russross/blackfriday.v2@v2.0.1=github.com/russross/blackfriday/v2@v2.0.1
 
 ## Build and deploy
-gcloud config set project grayll-app-f3f3f3
-
+gcloud config set project grayll-app-f3f3f3 &&
 gcloud builds submit --tag gcr.io/grayll-app-f3f3f3/grayll-app &&
-
 gcloud beta run deploy --image gcr.io/grayll-app-f3f3f3/grayll-app --platform managed --set-env-vars SELLING_PRICE=0.3,PROD=1,SUPER_ADMIN_ADDRESS=,SUPER_ADMIN_SEED=,SELLING_PERCENT=
 
 ## Federation project

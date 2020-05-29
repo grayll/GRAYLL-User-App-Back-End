@@ -19,8 +19,6 @@ import (
 const (
 	// gray price
 	UNIX_timestamp = "UNIX_timestamp"
-
-//price          = "price"
 )
 
 func QueryGrz() {

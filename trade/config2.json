@@ -1,0 +1,12 @@
+{
+	"isMainNet":true,
+	"assetCode":"GRX",
+	"issuerAddress":"GAQQZMUNB7UCL2SXHU6H7RZVNFL6PI4YXLPJNBXMOZXB2LOQ7LODH333",
+	"xlmLoanerSeed":"SATORSIMUQSQRV6H2TJRE7DO5YLES36JUHBGNQENSLXOAVBGHVI7K64B",
+	"xlmLoanerAddress":"GBJVGARC2QUPCGCN6BSIM3NMUB3UN7GQVO3QXGD37EI4VCZBB4FUUD5D",
+	"redisHost":"34.66.226.13",
+	"redisPort": 6379,
+	"redisPass":"KyZZspRWiyFiBOihPNYrqM9OBZ",
+	"horizonUrl":"https://horizon.stellar.org/",
+	"host":"https://app.grayll.io/"
+}
