@@ -173,6 +173,7 @@ func SetupRouter(appContext *api.ApiContext, isProd string) *gin.Engine {
 		v1.POST("/users/txverify", userHandler.TxVerify())
 		v1.POST("/users/notices", userHandler.GetNotices())
 		v1.POST("/users/updateReadNotices", userHandler.UpdateReadNotices())
+		v1.POST("/users/updateAllAsRead/:noticeType", userHandler.UpdateAllAsRead())
 		v1.POST("/users/getFieldInfo", userHandler.GetFieldInfo())
 		v1.POST("/users/verifyRevealSecretToken", userHandler.VerifyRevealSecretToken())
 		v1.POST("/users/sendRevealSecretToken", userHandler.SendRevealSecretToken())

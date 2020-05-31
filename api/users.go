@@ -30,8 +30,6 @@ import (
 	build "github.com/stellar/go/txnbuild"
 
 	"google.golang.org/api/iterator"
-	//"github.com/huyntsgs/stellar-service/assets"
-	//"github.com/go-redis/redis"
 )
 
 const (
@@ -667,6 +665,72 @@ func (h UserHandler) ValidatePhone() gin.HandlerFunc {
 			}
 		}
 		GinRespond(c, http.StatusOK, INVALID_CODE, "")
+	}
+}
+
+func (h UserHandler) UpdateAllAsRead() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var err error
+		uid := c.GetString("Uid")
+		userInfo, _ := GetUserByField(h.apiContext.Store, "Uid", uid)
+		if userInfo == nil {
+			GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Invalid user name or password")
+			return
+		}
+		noticeType := c.Param("noticeType")
+		log.Println("noticeType:", noticeType)
+		docPath := ""
+
+		urMap := make(map[string]interface{})
+		switch noticeType {
+		case "algo":
+			docPath = "notices/algo/" + uid
+			urMap = map[string]interface{}{"UrGRZ": 0, "UrGRY1": 0, "UrGRY2": 0, "UrGRY3": 0}
+		case "wallet":
+			docPath = "notices/wallet/" + uid
+			urMap = map[string]interface{}{"UrWallet": 0}
+		case "general":
+			docPath = "notices/general/" + uid
+			urMap = map[string]interface{}{"UrGeneral": 0}
+		default:
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Invalid notice type")
+			return
+		}
+		ctx := context.Background()
+		iter := h.apiContext.Store.Collection(docPath).Where("isRead", "==", false).Documents(ctx)
+		batch := h.apiContext.Store.Batch()
+		cnt := 0
+
+		for {
+			doc, err := iter.Next()
+			if err == iterator.Done {
+				break
+			}
+			batch.Set(doc.Ref, map[string]interface{}{"isRead": true}, firestore.MergeAll)
+			cnt++
+			log.Println("doc notice data:", doc.Data())
+		}
+		log.Println("unread notice:", cnt)
+		if cnt > 0 {
+			userMeta := h.apiContext.Store.Doc("users_meta/" + uid)
+			if err != nil {
+				if err != nil {
+					GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not update read all")
+					return
+				}
+			}
+			batch.Set(userMeta, urMap, firestore.MergeAll)
+			_, err = batch.Commit(ctx)
+			if err != nil {
+				log.Println("[ERROR] batch commit:", err)
+				GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not update read all")
+				return
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"errCode": SUCCESS,
+		})
 	}
 }
 
