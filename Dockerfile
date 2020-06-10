@@ -22,7 +22,8 @@ RUN apk add --no-cache ca-certificates
 COPY --from=builder /go/src/bitbucket.org/grayll/grayll.io-user-app-back-end/grayll-app /grayll-app
 COPY --from=builder /go/src/bitbucket.org/grayll/grayll.io-user-app-back-end/key /key
 COPY --from=builder /go/src/bitbucket.org/grayll/grayll.io-user-app-back-end/config1.json /config1.json
-COPY --from=builder /go/src/bitbucket.org/grayll/grayll.io-user-app-back-end/grayll-app-f3f3f3-firebase-adminsdk-vhclm-e074da6170.json /grayll-app-f3f3f3-firebase-adminsdk-vhclm-e074da6170.json
+COPY --from=builder /go/src/bitbucket.org/grayll/grayll.io-user-app-back-end/config1-dev.json /config1-dev.json
+#COPY --from=builder /go/src/bitbucket.org/grayll/grayll.io-user-app-back-end/grayll-app-f3f3f3-firebase-adminsdk-vhclm-e074da6170.json /grayll-app-f3f3f3-firebase-adminsdk-vhclm-e074da6170.json
 COPY --from=builder /usr/local/go/lib/time/zoneinfo.zip /
 ENV ZONEINFO=/zoneinfo.zip
 #ENV PORT 8080

@@ -669,14 +669,19 @@ func (h UserHandler) ReportData() gin.HandlerFunc {
 			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Invalid user id")
 			return
 		}
-		prices, err := h.apiContext.Store.Doc("price_update/794retePzavE19bTcMaH").Get(ctx)
-		if err != nil {
-			log.Printf("[ERROR] Can not get user meta with user id: %s, %v\n", uid, err)
-			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Invalid user id")
-			return
+
+		grxusd, err := h.apiContext.Cache.GetGRXUsd()
+		xlmusd, err1 := h.apiContext.Cache.GetXLMUsd()
+		if err != nil || err1 != nil {
+			prices, err := h.apiContext.Store.Doc("price_update/794retePzavE19bTcMaH").Get(ctx)
+			if err != nil {
+				log.Printf("[ERROR] Can not get user meta with user id: %s, %v\n", uid, err)
+				GinRespond(c, http.StatusOK, INVALID_PARAMS, "Invalid user id")
+				return
+			}
+			xlmusd = prices.Data()["xlmusd"].(float64)
+			grxusd = prices.Data()["grxusd"].(float64)
 		}
-		xlmusd := prices.Data()["xlmusd"].(float64)
-		grxusd := prices.Data()["grxusd"].(float64)
 
 		contents := GenDataReportMail(currReportSetting, doc.Data(), xlmusd, grxusd, int64(setting["Time"].(float64)))
 
@@ -854,23 +859,9 @@ func GenDataReportMail(reportSetting ReportDataSetting, data map[string]interfac
 	contents = append(contents, []string{timeLocal.Format(`15:04 | 02-01-2006`), `Please find your scheduled GRAYLL Data Summary Report below.`}...)
 
 	//If Wallet Balance has been selected
-	xlmBalance := float64(0)
-	grxBalance := float64(0)
-	walletBalance := float64(0)
-	switch (data["GRX"]).(type) {
-	case float64:
-		grxBalance = data["GRX"].(float64)
-	case int64:
-		grxBalance = float64(data["GRX"].(int64))
-	}
-	switch (data["XLM"]).(type) {
-	case float64:
-		xlmBalance = data["XLM"].(float64)
-	case int64:
-		xlmBalance = float64(data["XLM"].(int64))
-	}
-
-	walletBalance = xlmBalance*xlmusd + grxBalance*grxusd
+	xlmBalance := GetFloatValue(data["XLM"])
+	grxBalance := GetFloatValue(data["GRX"])
+	walletBalance := xlmBalance*xlmusd + grxBalance*grxusd
 	if reportSetting.WalletBalance {
 		contents = append(contents, []string{
 			fmt.Sprintf(`Total Wallet Balance: $ %.6f`, walletBalance),
@@ -887,16 +878,16 @@ func GenDataReportMail(reportSetting ReportDataSetting, data map[string]interfac
 		total_gry2_current_position_value := float64(0)
 		total_gry3_current_position_value := float64(0)
 		if value, ok := data["total_grz_current_position_value_$"]; ok {
-			total_grz_current_position_value = value.(float64)
+			total_grz_current_position_value = GetFloatValue(value)
 		}
 		if value, ok := data["total_gry1_current_position_value_$"]; ok {
-			total_gry1_current_position_value = value.(float64)
+			total_gry1_current_position_value = GetFloatValue(value)
 		}
 		if value, ok := data["total_gry2_current_position_value_$"]; ok {
-			total_gry2_current_position_value = value.(float64)
+			total_gry2_current_position_value = GetFloatValue(value)
 		}
 		if value, ok := data["total_gry3_current_position_value_$"]; ok {
-			total_gry3_current_position_value = value.(float64)
+			total_gry3_current_position_value = GetFloatValue(value)
 		}
 
 		total := total_gry1_current_position_value + total_gry2_current_position_value + total_gry3_current_position_value + total_grz_current_position_value + walletBalance
@@ -909,38 +900,38 @@ func GenDataReportMail(reportSetting ReportDataSetting, data map[string]interfac
 
 		total_gry1_current_position_ROI := float64(0)
 		if value, ok := data["total_gry1_current_position_ROI_$"]; ok {
-			total_gry1_current_position_ROI = value.(float64)
+			total_gry1_current_position_ROI = GetFloatValue(value)
 		}
 		total_gry1_close_position_ROI := float64(0)
 		if value, ok := data["total_gry1_close_position_ROI_$"]; ok {
-			total_gry1_close_position_ROI = value.(float64)
+			total_gry1_close_position_ROI = GetFloatValue(value)
 		}
 
 		total_gry2_current_position_ROI := float64(0)
 		if value, ok := data["total_gry2_current_position_ROI_$"]; ok {
-			total_gry2_current_position_ROI = value.(float64)
+			total_gry2_current_position_ROI = GetFloatValue(value)
 		}
 		total_gry2_close_position_ROI := float64(0)
 		if value, ok := data["total_gry2_close_position_ROI_$"]; ok {
-			total_gry2_close_position_ROI = value.(float64)
+			total_gry2_close_position_ROI = GetFloatValue(value)
 		}
 
 		total_gry3_current_position_ROI := float64(0)
 		if value, ok := data["total_gry3_current_position_ROI_$"]; ok {
-			total_gry3_current_position_ROI = value.(float64)
+			total_gry3_current_position_ROI = GetFloatValue(value)
 		}
 		total_gry3_close_position_ROI := float64(0)
 		if value, ok := data["total_gry3_close_position_ROI_$"]; ok {
-			total_gry3_close_position_ROI = value.(float64)
+			total_gry3_close_position_ROI = GetFloatValue(value)
 		}
 
 		total_grz_current_position_ROI := float64(0)
 		if value, ok := data["total_grz_current_position_ROI_$"]; ok {
-			total_grz_current_position_ROI = value.(float64)
+			total_grz_current_position_ROI = GetFloatValue(value)
 		}
 		total_grz_close_positions_ROI := float64(0)
 		if value, ok := data["total_grz_close_positions_ROI_$"]; ok {
-			total_grz_close_positions_ROI = value.(float64)
+			total_grz_close_positions_ROI = GetFloatValue(value)
 		}
 		totalProfit := total_gry3_current_position_ROI + total_gry3_close_position_ROI + total_gry2_current_position_ROI +
 			total_gry2_close_position_ROI + total_gry1_current_position_ROI + total_gry1_close_position_ROI + total_grz_current_position_ROI + total_grz_close_positions_ROI
@@ -949,21 +940,21 @@ func GenDataReportMail(reportSetting ReportDataSetting, data map[string]interfac
 
 	//If Account Profit has been selected by the user
 	if reportSetting.OpenPosition {
-		total_gry1_open_positions := 0
+		total_gry1_open_positions := int64(0)
 		if value, ok := data["total_gry1_open_positions"]; ok {
-			total_gry1_open_positions = int(value.(float64))
+			total_gry1_open_positions = GetIntValue(value)
 		}
-		total_gry2_open_positions := 0
+		total_gry2_open_positions := int64(0)
 		if value, ok := data["total_gry2_open_positions"]; ok {
-			total_gry2_open_positions = int(value.(float64))
+			total_gry2_open_positions = GetIntValue(value)
 		}
-		total_gry3_open_positions := 0
+		total_gry3_open_positions := int64(0)
 		if value, ok := data["total_gry3_open_positions"]; ok {
-			total_gry3_open_positions = int(value.(float64))
+			total_gry3_open_positions = GetIntValue(value)
 		}
-		total_grz_open_positions := 0
+		total_grz_open_positions := int64(0)
 		if value, ok := data["total_grz_open_positions"]; ok {
-			total_grz_open_positions = int(value.(float64))
+			total_grz_open_positions = GetIntValue(value)
 		}
 		contents = append(contents,
 			[]string{fmt.Sprintf(`Total Open Algo Positions: %d`, total_gry1_open_positions+total_gry2_open_positions+total_gry3_open_positions+total_grz_open_positions),

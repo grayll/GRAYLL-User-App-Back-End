@@ -5,7 +5,8 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"strings"
+
+	//"strings"
 	"time"
 
 	"bitbucket.org/grayll/grayll.io-user-app-back-end/api"
@@ -29,10 +30,12 @@ func main() {
 		log.Fatal("Error loading rsa key")
 	}
 	var store *firestore.Client
-	prod := os.Getenv("PROD")
+	srv := os.Getenv("SERVER")
 	var config *api.Config
-	if prod == "1" {
+	if srv == "prod" {
 		config = parseConfig("config1.json")
+	} else if srv == "dev" {
+		config = parseConfig("config1-dev.json")
 	} else {
 		config = parseConfig("config.json")
 	}
@@ -90,36 +93,37 @@ func main() {
 	}
 	appContext.CloudTaskClient = cloudTaskClient
 
-	router := SetupRouter(appContext, prod)
+	router := SetupRouter(appContext, srv)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 	router.Run(":" + port)
 }
-func CheckAllowedCorApi(reqURL string) bool {
-	// if strings.Contains(reqURL, "/users/Renew") || strings.Contains(reqURL, "/users/ReportData") || strings.Contains(reqURL, "/warmup") {
-	// 	return true
-	// }
-	log.Println("reqURL:", reqURL)
-	if strings.Contains(reqURL, "/users/ReportData") || strings.Contains(reqURL, "/warmup") {
-		return true
-	}
-	return false
-}
 
-func SetupRouter(appContext *api.ApiContext, isProd string) *gin.Engine {
+// func CheckAllowedCorApi(reqURL string) bool {
+// 	// if strings.Contains(reqURL, "/users/Renew") || strings.Contains(reqURL, "/users/ReportData") || strings.Contains(reqURL, "/warmup") {
+// 	// 	return true
+// 	// }
+// 	log.Println("reqURL:", reqURL)
+// 	if strings.Contains(reqURL, "/users/ReportData") || strings.Contains(reqURL, "/warmup") {
+// 		return true
+// 	}
+// 	return false
+// }
+
+func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 	//gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Logger())
-	if isProd == "1" {
+	if srv == "prod" || srv == "dev" {
 		router.Use(cors.New(cors.Config{
 			AllowOrigins:     []string{"https://app.grayll.io", "http://127.0.0.1:4200"},
 			AllowMethods:     []string{"POST, GET, OPTIONS, PUT, DELETE"},
 			AllowHeaders:     []string{"Authorization", "Origin", "Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token"},
 			ExposeHeaders:    []string{"Content-Length"},
 			AllowCredentials: true,
-			AllowURLKeywords: []string{"warmup"},
+			AllowURLKeywords: []string{"warmup", "federation", "reportData"},
 			MaxAge:           24 * time.Hour,
 		}))
 	} else {
@@ -130,7 +134,7 @@ func SetupRouter(appContext *api.ApiContext, isProd string) *gin.Engine {
 			AllowHeaders:     []string{"Authorization", "Origin", "Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token"},
 			ExposeHeaders:    []string{"Content-Length"},
 			AllowCredentials: true,
-			AllowURLKeywords: []string{"warmup", "federation"},
+			AllowURLKeywords: []string{"warmup", "federation", "reportData"},
 			MaxAge:           24 * time.Hour,
 		}))
 	}
@@ -157,6 +161,7 @@ func SetupRouter(appContext *api.ApiContext, isProd string) *gin.Engine {
 	v1.POST("/reportData", userHandler.ReportData())
 
 	v1.GET("/checkpw", userHandler.CheckPw())
+	v1.GET("/verifyemail/:email", userHandler.VerifyEmail())
 
 	// apis needs to authenticate
 	v1.Use(api.Authorize(appContext.Jwt))

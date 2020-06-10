@@ -2,6 +2,9 @@ package api
 
 import (
 	"fmt"
+	"log"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -118,4 +121,118 @@ func (cache *RedisCache) GetFunc2LAS() (float64, error) {
 		return 0, err
 	}
 	return las, nil
+}
+
+// Update number open positions depends on the action OPEN/CLOSE
+func (cache *RedisCache) UpdatePositionNumbers(uid, algorithm, action string, n int64) (int64, error) {
+	str := strings.ToLower(strings.ReplaceAll(algorithm, " ", ""))
+	key := fmt.Sprintf("_total_%s_open_positions", str)
+	var res *redis.IntCmd
+	if action == "OPEN" {
+		res = cache.client.IncrBy(uid+key, 1)
+	} else if action == "CLOSE" && n > 0 {
+		res = cache.client.DecrBy(uid+key, n)
+	} else if n == 0 {
+		err := cache.client.Set(uid+key, 0, 0).Err()
+		return int64(0), err
+	}
+
+	return res.Result()
+}
+func (cache *RedisCache) UpdatePositionOpen(uid, algorithm, grayllTxId string, currentValue float64) (int64, error) {
+	cacheTxId, _ := GetCacheTxId(algorithm, grayllTxId)
+	//str := strings.ToLower(strings.ReplaceAll(algorithm, " ", ""))
+	_, hashCurrentValue := BuildHash(uid, algorithm)
+	cache.client.HSet(hashCurrentValue, cacheTxId, currentValue)
+	return cache.UpdatePositionNumbers(uid, algorithm, "OPEN", 1)
+}
+func (cache *RedisCache) UpdateCurrentPositionValues(uid, algorithm, grayllTxId string, roi, currentValue float64) {
+	cacheTxId, _ := GetCacheTxId(algorithm, grayllTxId)
+	hashRoi, hashCurrentValue := BuildHash(uid, algorithm)
+
+	cache.client.HSet(hashRoi, cacheTxId, roi)
+	cache.client.HSet(hashCurrentValue, cacheTxId, currentValue)
+}
+
+func (cache *RedisCache) UpdatePositionClose(uid, algorithm, grayllTxId string) (int64, error) {
+	cacheTxId, _ := GetCacheTxId(algorithm, grayllTxId)
+	str := strings.ToLower(strings.ReplaceAll(algorithm, " ", ""))
+	hashRoi := fmt.Sprintf("%s_%s_current_ROI", uid, str)
+	hashCurrentValue := fmt.Sprintf("%s_%s_current_value", uid, str)
+	cache.client.HDel(hashRoi, cacheTxId)
+	cache.client.HDel(hashCurrentValue, cacheTxId)
+
+	return cache.UpdatePositionNumbers(uid, algorithm, "CLOSE", 1)
+}
+
+func (cache *RedisCache) UpdatePositionCloseAll(uid, algorithm, grayllTxId string) {
+	cacheTxId, _ := GetCacheTxId(algorithm, grayllTxId)
+	str := strings.ToLower(strings.ReplaceAll(algorithm, " ", ""))
+	hashRoi := fmt.Sprintf("%s_%s_current_ROI", uid, str)
+	hashCurrentValue := fmt.Sprintf("%s_%s_current_value", uid, str)
+	cache.client.HDel(hashRoi, cacheTxId)
+	cache.client.HDel(hashCurrentValue, cacheTxId)
+
+	//return cache.UpdatePositionNumbers(uid, algorithm, "CLOSE", 1)
+}
+
+func (cache *RedisCache) GetCurrentValues(uid, algorithm string, isGetRoi bool) (float64, float64) {
+
+	hashRoi, hashCurrentValue := BuildHash(uid, algorithm)
+
+	currentValues := cache.client.HGetAll(hashCurrentValue)
+
+	totalCurrentRoi := float64(0)
+	totalCurrentValue := float64(0)
+
+	if isGetRoi {
+		rois := cache.client.HGetAll(hashRoi)
+		_rois, err := rois.Result()
+		if err != nil {
+			log.Println("[ERROR] Can not get rois for key:", hashRoi)
+		} else {
+			for _, v := range _rois {
+
+				roi, _ := strconv.ParseFloat(v, 64)
+				totalCurrentRoi += roi
+			}
+		}
+	}
+	_currentValues, err := currentValues.Result()
+	if err != nil {
+		log.Println("[ERROR] Can not get current value for key:", hashCurrentValue)
+	} else {
+		for _, v := range _currentValues {
+			currentValue, _ := strconv.ParseFloat(v, 64)
+			totalCurrentValue += currentValue
+		}
+	}
+
+	return totalCurrentRoi, totalCurrentValue
+}
+
+func BuildHash(uid, algorithm string) (string, string) {
+	str := strings.ToLower(strings.ReplaceAll(algorithm, " ", ""))
+	hashCurrentValue := fmt.Sprintf("%s_%s_current_value", uid, str)
+	hashRoi := fmt.Sprintf("%s_%s_current_ROI", uid, str)
+	return hashRoi, hashCurrentValue
+}
+func GetCacheTxId(algoType, grayll_tx_id string) (string, string) {
+	cacheTxId := ""
+	unreadPath := ""
+	switch algoType {
+	case "GRZ":
+		unreadPath = "UrGRZ"
+		cacheTxId = "z1" + grayll_tx_id
+	case "GRY 1":
+		unreadPath = "UrGRY1"
+		cacheTxId = "y1" + grayll_tx_id
+	case "GRY 2":
+		unreadPath = "UrGRY2"
+		cacheTxId = "y2" + grayll_tx_id
+	case "GRY 3":
+		unreadPath = "UrGRY3"
+		cacheTxId = "y3" + grayll_tx_id
+	}
+	return cacheTxId, unreadPath
 }

@@ -409,6 +409,25 @@ func (h UserHandler) Renew() gin.HandlerFunc {
 	}
 }
 
+func (h UserHandler) VerifyEmail() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		email := c.Param("email")
+		if email == "" {
+			GinRespond(c, http.StatusOK, EMAIL_INVALID, "Email address is invalid")
+			return
+		}
+		err := VerifyEmailNeverBounce(h.apiContext.Config.NeverBounceApiKey, email)
+		if err != nil {
+			GinRespond(c, http.StatusOK, EMAIL_INVALID, "Email address is invalid")
+			return
+		}
+		GinRespond(c, http.StatusOK, SUCCESS, "")
+		return
+
+	}
+}
+
 // Register handles register router.
 // Function validates parameters and call Register from UserStore.
 func (h UserHandler) Register() gin.HandlerFunc {
@@ -700,7 +719,7 @@ func (h UserHandler) UpdateAllAsRead() gin.HandlerFunc {
 		iter := h.apiContext.Store.Collection(docPath).Where("isRead", "==", false).Documents(ctx)
 		batch := h.apiContext.Store.Batch()
 		cnt := 0
-
+		total := 0
 		for {
 			doc, err := iter.Next()
 			if err == iterator.Done {
@@ -708,10 +727,20 @@ func (h UserHandler) UpdateAllAsRead() gin.HandlerFunc {
 			}
 			batch.Set(doc.Ref, map[string]interface{}{"isRead": true}, firestore.MergeAll)
 			cnt++
-			log.Println("doc notice data:", doc.Data())
+			total++
+			if cnt >= 300 {
+				_, err = batch.Commit(ctx)
+				if err != nil {
+					log.Println("[ERROR] batch commit:", err)
+					GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not update read all")
+					return
+				}
+				batch = h.apiContext.Store.Batch()
+				cnt = 0
+			}
 		}
-		log.Println("unread notice:", cnt)
-		if cnt > 0 {
+
+		if total > 0 {
 			userMeta := h.apiContext.Store.Doc("users_meta/" + uid)
 			if err != nil {
 				if err != nil {

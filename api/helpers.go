@@ -45,6 +45,25 @@ func VerifyEmailNeverBounce(neverBounceApiKey, email string) error {
 	}
 	return nil
 }
+
+func GetFloatValue(input interface{}) float64 {
+	switch input.(type) {
+	case int64:
+		return float64(input.(int64))
+	case float64:
+		return input.(float64)
+	}
+	return 0
+}
+func GetIntValue(input interface{}) int64 {
+	switch input.(type) {
+	case int64:
+		return input.(int64)
+	case float64:
+		return int64(input.(float64))
+	}
+	return 0
+}
 func Hash(input string) string {
 	h := sha256.New()
 	h.Write([]byte(input))

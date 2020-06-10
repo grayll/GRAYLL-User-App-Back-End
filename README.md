@@ -5,7 +5,11 @@
 ## Build and deploy
 gcloud config set project grayll-app-f3f3f3 &&
 gcloud builds submit --tag gcr.io/grayll-app-f3f3f3/grayll-app &&
-gcloud beta run deploy --image gcr.io/grayll-app-f3f3f3/grayll-app --platform managed --set-env-vars SELLING_PRICE=0.3,PROD=1,SUPER_ADMIN_ADDRESS=,SUPER_ADMIN_SEED=,SELLING_PERCENT=
+gcloud beta run deploy --image gcr.io/grayll-app-f3f3f3/grayll-app --platform managed --set-env-vars SELLING_PRICE=0.3,SERVER=prod,SUPER_ADMIN_ADDRESS=,SUPER_ADMIN_SEED=,SELLING_PERCENT=
+
+gcloud config set project grayll-app-f3f3f3 &&
+gcloud builds submit --tag gcr.io/grayll-app-f3f3f3/grayll-app-dev &&
+gcloud beta run deploy --image gcr.io/grayll-app-f3f3f3/grayll-app-dev --platform managed --set-env-vars SELLING_PRICE=0.3,SERVER=prod,SUPER_ADMIN_ADDRESS=,SUPER_ADMIN_SEED=,SELLING_PERCENT=
 
 ## Federation project
 gcloud config set project grayll-federation
