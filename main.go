@@ -203,6 +203,10 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 		v1.POST("/phones/verifycode", phones.VerifyCode())
 		v1.POST("/users/ChangePassword", userHandler.ChangePassword())
 
+		v1.POST("/users/invite", userHandler.Invite())
+		v1.POST("/users/reinvite/:docId", userHandler.ReInvite())
+		v1.POST("/users/delinvite/:docId", userHandler.DelInvite())
+
 	}
 	return router
 }

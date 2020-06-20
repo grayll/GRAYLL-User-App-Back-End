@@ -42,16 +42,10 @@ type TfaUpdate struct {
 }
 
 type UserInfo struct {
-	//Uid   string `json:"Uid,omitempty"`
 	Name  string `json:"Name"`
 	LName string `json:"LName,omitempty"`
 	Email string `json:"Email"`
-	//Token string `json:"Token,omitempty"`
-	//Tfa                Tfa     `json:"Tfa"`
-	// Number unread notice wallet,algo and general
-	UrWallet       int      `json:"UrWallet"`
-	UrAlgo         int      `json:"UrAlgo"`
-	UrGeneral      int      `json:"UrGeneral"`
+
 	HashPassword   string   `json:"HashPassword"`
 	Setting        Settings `json:"Setting"`
 	Ip             string   `json:"Ip,omitempty"`
@@ -62,6 +56,23 @@ type UserInfo struct {
 	Federation     string   `json:"Federation,omitempty"`
 	IsVerified     bool     `json:"IsVerified,omitempty"`
 }
+type RegistrationInfo struct {
+	Name           string   `json:"Name"`
+	LName          string   `json:"LName,omitempty"`
+	Email          string   `json:"Email"`
+	HashPassword   string   `json:"HashPassword"`
+	Setting        Settings `json:"Setting"`
+	Ip             string   `json:"Ip,omitempty"`
+	CreatedAt      int64    `json:"CreatedAt,omitempty"`
+	PublicKey      string   `json:"PublicKey,omitempty"`
+	LoanPaidStatus int      `json:"LoanPaidStatus,omitempty"`
+	Hmac           string   `json:"Hmac,omitempty""`
+	Federation     string   `json:"Federation,omitempty"`
+	IsVerified     bool     `json:"IsVerified,omitempty"`
+	Referer        string   `json:"Referer,omitempty"`
+	DocId          string   `json:"DocId,omitempty"`
+}
+
 type UserLogin struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -76,6 +87,14 @@ func (u *UserLogin) Validate() bool {
 
 // Validate checks user data is valid or not for register.
 func (u *UserInfo) Validate() bool {
+	if govalidator.IsNull(u.Name) ||
+		//govalidator.IsNull(u.PublicKey) || govalidator.IsNull(u.EncryptedSecretKey) ||
+		!govalidator.IsEmail(u.Email) {
+		return false
+	}
+	return true
+}
+func (u *RegistrationInfo) Validate() bool {
 	if govalidator.IsNull(u.Name) ||
 		//govalidator.IsNull(u.PublicKey) || govalidator.IsNull(u.EncryptedSecretKey) ||
 		!govalidator.IsEmail(u.Email) {

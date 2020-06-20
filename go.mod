@@ -2,7 +2,7 @@ module bitbucket.org/grayll/grayll.io-user-app-back-end
 
 go 1.12
 
-//replace github.com/huyntsgs/stellar-service v0.0.0-20200128120222-b3286e4e9739 => /home/bc/go/src/github.com/huyntsgs/stellar-service
+//replace github.com/huyntsgs/stellar-service v0.0.0-20200511152020-7a130845cf0d => /home/bc/go/src/github.com/huyntsgs/stellar-service
 
 //replace github.com/huyntsgs/cors v1.3.2-0.20200524025249-9865eda97561 => /home/bc/go/src/github.com/huyntsgs/cors
 
@@ -10,7 +10,7 @@ require (
 	cloud.google.com/go v0.51.0
 	cloud.google.com/go/firestore v1.1.0
 	cloud.google.com/go/pubsub v1.0.1
-	firebase.google.com/go v3.10.0+incompatible
+	firebase.google.com/go v3.12.0+incompatible
 	github.com/Masterminds/goutils v1.1.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
@@ -43,11 +43,14 @@ require (
 	github.com/olekukonko/tablewriter v0.0.2 // indirect
 	github.com/sendgrid/rest v2.4.1+incompatible // indirect
 	github.com/sendgrid/sendgrid-go v3.5.0+incompatible
+	//github.com/stellar/go v0.0.0-20200428193902-20797e3e2f1a
+
 	github.com/stellar/go v0.0.0-20190920224012-d72ea298f1e9
 	go.uber.org/goleak v0.10.0 // indirect
-	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
+	golang.org/x/crypto v0.0.0-20191112222119-e1110fd1c708
 	google.golang.org/api v0.15.0
 	google.golang.org/genproto v0.0.0-20200117163144-32f20d992d24
+	google.golang.org/grpc v1.26.0
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/go-playground/validator.v8 v8.18.2 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0

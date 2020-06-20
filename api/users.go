@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base32"
+	"encoding/base64"
 	"encoding/json"
 	"strconv"
 	"sync"
@@ -30,6 +31,8 @@ import (
 	build "github.com/stellar/go/txnbuild"
 
 	"google.golang.org/api/iterator"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -47,7 +50,7 @@ const (
 	UID               = "Uid"
 	RevealSecretToken = "revealSecretToken"
 	TokeExpiredTime   = 24*60*60 - 2
-	//TokeExpiredTime = 5 * 60
+	//TokeExpiredTime = 3 * 60
 )
 
 type UserHandler struct {
@@ -322,8 +325,6 @@ func (h UserHandler) Login() gin.HandlerFunc {
 			_hmc = hmac.(string)
 		}
 
-		//timeCreated := userInfo["CreatedAt"].(int64)
-		//tokeExpTime := time.Now().Unix() + int64(24*60*60-5)
 		tokeExpTime := time.Now().Unix() + TokeExpiredTime
 		userMeta := map[string]interface{}{"UrWallet": 0, "UrGRY1": 0, "UrGRY2": 0, "UrGRY3": 0, "UrGRZ": 0, "UrGeneral": 0, "OpenOrders": 0, "OpenOrdersGRX": 0,
 			"OpenOrdersXLM": 0, "GRX": 0, "XLM": 0, "TokenExpiredTime": tokeExpTime}
@@ -351,21 +352,6 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		}
 		userMeta["XlmP"] = xlmP
 		userMeta["GrxP"] = grxP
-
-		// if timeCreated < 1578380479 {
-		// 	// set user meta data
-		// 	_, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), userMeta)
-		// 	if err != nil {
-		// 		log.Println(uid+": Set users_meta data error %v\n", err)
-		// 	}
-		// } else {
-		// 	snapShot, err := h.apiContext.Store.Doc("users_meta/" + uid).Get(context.Background())
-		// 	if err != nil {
-		// 		log.Println(uid+": Can not get users_meta error %v\n", err)
-		// 	} else {
-		// 		userMeta = snapShot.Data()
-		// 	}
-		// }
 
 		delete(userInfo, "LoanPaidStatus")
 		delete(userInfo, "HashPassword")
@@ -432,7 +418,7 @@ func (h UserHandler) VerifyEmail() gin.HandlerFunc {
 // Function validates parameters and call Register from UserStore.
 func (h UserHandler) Register() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var input models.UserInfo
+		var input models.RegistrationInfo
 		ctx := context.Background()
 		err := c.BindJSON(&input)
 		if err != nil {
@@ -459,7 +445,6 @@ func (h UserHandler) Register() gin.HandlerFunc {
 		}
 
 		// Get IP of user at time registration
-		//input.Token = ""
 		hmc := Hmac("kFOLecggKkSgaWGn_dyoFzZyuY8wFtzkvcncIU-J", input.Email)
 		input.Federation = input.Email + "*grayll.io"
 		input.LoanPaidStatus = 0
@@ -475,13 +460,94 @@ func (h UserHandler) Register() gin.HandlerFunc {
 		}
 		input.HashPassword = hash
 		input.Hmac = hmc
-		docRef, _, err := h.apiContext.Store.Collection("users").Add(ctx, input)
-		if err != nil {
-			log.Printf("AddUserData:Add error %v\n", err)
-			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not register right now")
-			return
+		batch := h.apiContext.Store.Batch()
+		userDoc := h.apiContext.Store.Collection("users").NewDoc()
+
+		// docRef, _, err := h.apiContext.Store.Collection("users").Add(ctx, input)
+		// if err != nil {
+		// 	log.Printf("AddUserData:Add error %v\n", err)
+		// 	GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not register right now")
+		// 	return
+		// }
+
+		uid := userDoc.ID // Check referer user
+		if input.Referer != "" {
+			log.Println("Start referral setup")
+			uidb, err := base64.StdEncoding.DecodeString(input.Referer)
+			if err != nil {
+				log.Println("[ERROR] - Register - can not decode referer:", err)
+			} else {
+
+				refererUid := string(uidb)
+				log.Println("referer uid:", refererUid)
+				referer, err := h.apiContext.Store.Doc("users/" + refererUid).Get(ctx)
+				if err != nil {
+					log.Println("[ERROR] - get referer uid:", err)
+				} else {
+					t := time.Now().Unix()
+
+					refererDoc := h.apiContext.Store.Doc("referrals/" + uid + "/referer/" + refererUid)
+					batch.Set(refererDoc, map[string]interface{}{
+						"time":   t,
+						"name":   referer.Data()["Name"],
+						"lname":  referer.Data()["LName"],
+						"email":  referer.Data()["Email"],
+						"uid":    refererUid,
+						"feeGRX": 0,
+					})
+
+					referralData := map[string]interface{}{
+						"time":         t,
+						"name":         input.Name,
+						"lname":        input.LName,
+						"email":        input.Email,
+						"totalFeeGRX":  0,
+						"totalPayment": 0,
+					}
+					if input.DocId != "" {
+						invitedDoc, err := h.apiContext.Store.Doc("referrals/" + refererUid + "/invite/" + input.DocId).Get(ctx)
+						if err == nil && invitedDoc != nil {
+							log.Println("get from invite data:")
+							referralData = invitedDoc.Data()
+							referralData["totalFeeGRX"] = 0
+							referralData["totalPayment"] = 0
+						}
+					}
+					log.Println("referralData:", referralData)
+
+					referralData["uid"] = uid
+					referralDoc := h.apiContext.Store.Doc("referrals/" + refererUid + "/referral/" + uid)
+					batch.Set(referralDoc, referralData)
+
+					invitedDoc := h.apiContext.Store.Doc("referrals/" + refererUid + "/invite/" + input.DocId)
+					batch.Delete(invitedDoc)
+
+					// Check whether metrics data exist
+					metricDoc, err := h.apiContext.Store.Doc("referrals/" + refererUid + "/metrics/referral").Get(ctx)
+					//log.Println("metricDoc, err:", err)
+					if err != nil && grpc.Code(err) == codes.NotFound {
+						// already exist
+						log.Println("!existed referral")
+						metricDoc := h.apiContext.Store.Doc("referrals/" + refererUid + "/metrics/referral")
+						batch.Set(metricDoc, map[string]interface{}{
+							"confirmed":    1,
+							"pending":      0,
+							"totalFeeGRX":  0,
+							"totalPayment": 0,
+						})
+
+					} else {
+						log.Println("existed referral")
+						batch.Update(metricDoc.Ref, []firestore.Update{
+							{
+								Path:  "confirmed",
+								Value: firestore.Increment(1),
+							},
+						})
+					}
+				}
+			}
 		}
-		uid := docRef.ID
 
 		encodeStr := utils.EncryptItem(h.apiContext.Jwt.PublicKey, input.Email)
 		if encodeStr == "" {
@@ -490,19 +556,33 @@ func (h UserHandler) Register() gin.HandlerFunc {
 			return
 		}
 
-		err = mail.SendMail(input.Email, input.Name, ConfirmRegistrationSub, VerifyEmail, encodeStr, h.apiContext.Config.Host, nil)
+		input.Referer = ""
+		batch.Set(userDoc, input)
+
+		userMeta := map[string]interface{}{"UrWallet": 0, "UrGRY1": 0, "UrGRY2": 0, "UrGRY3": 0, "UrGRZ": 0, "UrGeneral": 0, "UrRefererral": 0,
+			"Email": input.Email, "Name": input.Name, "LName": input.LName, "UserId": uid,
+			"OpenOrders": 0, "OpenOrdersGRX": 0, "OpenOrdersXLM": 0, "GRX": 0, "XLM": 0}
+
+		userMetaDoc := h.apiContext.Store.Doc("users_meta/" + uid)
+		batch.Set(userMetaDoc, userMeta)
+
+		_, err = batch.Commit(ctx)
 		if err != nil {
-			_, err = h.apiContext.Store.Doc("users/" + uid).Delete(ctx)
+			log.Println("[ERROR] - Register - Commit:", err)
 			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not register right now")
 			return
 		}
 
-		userMeta := map[string]interface{}{"UrWallet": 0, "UrGRY1": 0, "UrGRY2": 0, "UrGRY3": 0, "UrGRZ": 0, "UrGeneral": 0,
-			"OpenOrders": 0, "OpenOrdersGRX": 0, "OpenOrdersXLM": 0, "GRX": 0, "XLM": 0}
+		// _, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), userMeta)
+		// if err != nil {
+		// 	log.Println(uid+": Set users_meta data error %v\n", err)
+		// 	GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not register right now")
+		// 	return
+		// }
 
-		_, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), userMeta)
+		err = mail.SendMail(input.Email, input.Name, ConfirmRegistrationSub, VerifyEmail, encodeStr, h.apiContext.Config.Host, nil)
 		if err != nil {
-			log.Println(uid+": Set users_meta data error %v\n", err)
+			_, err = h.apiContext.Store.Doc("users/" + uid).Delete(ctx)
 			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not register right now")
 			return
 		}
@@ -702,7 +782,7 @@ func (h UserHandler) UpdateAllAsRead() gin.HandlerFunc {
 
 		urMap := make(map[string]interface{})
 		switch noticeType {
-		case "algo":
+		case "algo", "gry1", "gry2", "gry3", "grz":
 			docPath = "notices/algo/" + uid
 			urMap = map[string]interface{}{"UrGRZ": 0, "UrGRY1": 0, "UrGRY2": 0, "UrGRY3": 0}
 		case "wallet":
@@ -711,6 +791,7 @@ func (h UserHandler) UpdateAllAsRead() gin.HandlerFunc {
 		case "general":
 			docPath = "notices/general/" + uid
 			urMap = map[string]interface{}{"UrGeneral": 0}
+
 		default:
 			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Invalid notice type")
 			return
@@ -725,9 +806,33 @@ func (h UserHandler) UpdateAllAsRead() gin.HandlerFunc {
 			if err == iterator.Done {
 				break
 			}
-			batch.Set(doc.Ref, map[string]interface{}{"isRead": true}, firestore.MergeAll)
-			cnt++
-			total++
+			if noticeType != "grz" && noticeType != "gry1" && noticeType != "gry2" && noticeType != "gry3" {
+				batch.Set(doc.Ref, map[string]interface{}{"isRead": true}, firestore.MergeAll)
+				cnt++
+				total++
+			} else {
+				docType := doc.Data()["type"].(string)
+				if noticeType == "grz" && docType == "GRZ" {
+					batch.Set(doc.Ref, map[string]interface{}{"isRead": true}, firestore.MergeAll)
+					cnt++
+					total++
+				}
+				if noticeType == "gry1" && docType == "GRY 1" {
+					batch.Set(doc.Ref, map[string]interface{}{"isRead": true}, firestore.MergeAll)
+					cnt++
+					total++
+				}
+				if noticeType == "gry2" && docType == "GRY 2" {
+					batch.Set(doc.Ref, map[string]interface{}{"isRead": true}, firestore.MergeAll)
+					cnt++
+					total++
+				}
+				if noticeType == "gry3" && docType == "GRY 3" {
+					batch.Set(doc.Ref, map[string]interface{}{"isRead": true}, firestore.MergeAll)
+					cnt++
+					total++
+				}
+			}
 			if cnt >= 300 {
 				_, err = batch.Commit(ctx)
 				if err != nil {
@@ -742,10 +847,16 @@ func (h UserHandler) UpdateAllAsRead() gin.HandlerFunc {
 
 		if total > 0 {
 			userMeta := h.apiContext.Store.Doc("users_meta/" + uid)
-			if err != nil {
-				if err != nil {
-					GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not update read all")
-					return
+			if noticeType == "grz" || noticeType == "gry1" || noticeType == "gry2" || noticeType == "gry3" {
+				switch noticeType {
+				case "grz":
+					urMap = map[string]interface{}{"UrGRZ": 0}
+				case "gry1":
+					urMap = map[string]interface{}{"UrGRY1": 0}
+				case "gry2":
+					urMap = map[string]interface{}{"UrGRY2": 0}
+				case "gry3":
+					urMap = map[string]interface{}{"UrGRY3": 0}
 				}
 			}
 			batch.Set(userMeta, urMap, firestore.MergeAll)
@@ -2329,6 +2440,130 @@ func (h UserHandler) Federation() gin.HandlerFunc {
 		default:
 			c.JSON(http.StatusBadRequest, output)
 		}
+	}
+}
+
+func (h UserHandler) Invite() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		input := Contact{}
+
+		err := c.BindJSON(&input)
+		if err != nil {
+			log.Println("[ERROR]- Invite - can not bind json:", err)
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "")
+			return
+		}
+
+		err = VerifyEmailNeverBounce(h.apiContext.Config.NeverBounceApiKey, input.Email)
+		if err != nil {
+			log.Println("[ERROR]- Invite - email invalid:", err)
+			GinRespond(c, http.StatusOK, INVALID_ADDRESS, "invalid email address")
+			return
+		}
+
+		//check whether email already registered with Grayll
+		_, referralUid := GetUserByField(h.apiContext.Store, "Email", input.Email)
+		if referralUid != "" {
+			log.Println("[ERROR]- Invite - email already used:", err)
+			GinRespond(c, http.StatusOK, EMAIL_IN_USED, "email in used")
+			return
+		}
+
+		uid := c.GetString(UID)
+
+		doc := h.apiContext.Store.Collection("referrals/" + uid + "/invite").NewDoc()
+		invited := map[string]interface{}{
+			"id":             doc.ID,
+			"name":           input.Name,
+			"lname":          input.LName,
+			"email":          input.Email,
+			"businessName":   input.BussinessName,
+			"phone":          input.Phone,
+			"remindTime":     0,
+			"status":         "pending",
+			"lastSentRemind": time.Now().Unix(),
+			"sentRemind":     time.Now().Unix(),
+		}
+
+		title, _, contents := GenInvite(uid, input.Name, input.LName, doc.ID)
+
+		err = mail.SendNoticeMail(input.Email, input.Name, title, contents)
+		if err != nil {
+			log.Println("[ERROR]- Invite - can not send mail invite:", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
+			return
+		}
+		_, err = doc.Set(context.Background(), invited)
+		if err != nil {
+			log.Println("[ERROR]- Invite - can not save invite contact:", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "")
+			return
+		}
+		GinRespond(c, http.StatusOK, SUCCESS, "")
+
+	}
+}
+func (h UserHandler) ReInvite() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Get docid from url
+		docId := c.Param("docId")
+		if docId == "" {
+			log.Println("[ERROR]- ReSendInvite - invalid docid:")
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "docId not exist")
+			return
+		}
+
+		ctx := context.Background()
+
+		uid := c.GetString(UID)
+
+		doc, err := h.apiContext.Store.Doc("referrals/" + uid + "/invite/" + docId).Get(context.Background())
+		if err != nil {
+			log.Println("[ERROR]- ReSendInvite - can not find invite document:", err, uid)
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "docId not exist")
+			return
+		}
+		title, _, contents := GenInvite(uid, doc.Data()["name"].(string), doc.Data()["lname"].(string), doc.Ref.ID)
+
+		err = mail.SendNoticeMail(doc.Data()["email"].(string), doc.Data()["name"].(string), title, contents)
+		if err != nil {
+			log.Println("[ERROR]- ReSendInvite - can not send mail invite:", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
+			return
+		}
+		_, err = h.apiContext.Store.Doc("referrals/"+uid+"/invite/"+docId).Update(ctx, []firestore.Update{
+			{Path: "remindTime", Value: firestore.Increment(1)},
+			{Path: "lastSentRemind", Value: time.Now().Unix()},
+		})
+
+		if err != nil {
+			log.Println("[ERROR]- ReSendInvite - can not save invite contact:", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "")
+			return
+		}
+		GinRespond(c, http.StatusOK, SUCCESS, "")
+	}
+}
+func (h UserHandler) DelInvite() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Get docid from url
+		docId := c.Param("docId")
+		if docId == "" {
+			log.Println("[ERROR]- ReSendInvite - invalid docid:")
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "docId not exist")
+			return
+		}
+		ctx := context.Background()
+
+		uid := c.GetString(UID)
+
+		_, err := h.apiContext.Store.Doc("referrals/" + uid + "/invite/" + docId).Delete(ctx)
+		if err != nil {
+			log.Println("[ERROR]- ReSendInvite - can not find invite document:", err, uid)
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "docId not exist")
+			return
+		}
+		GinRespond(c, http.StatusOK, SUCCESS, "")
 	}
 }
 
