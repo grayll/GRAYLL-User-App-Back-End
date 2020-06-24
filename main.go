@@ -206,6 +206,8 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 		v1.POST("/users/invite", userHandler.Invite())
 		v1.POST("/users/reinvite/:docId", userHandler.ReInvite())
 		v1.POST("/users/delinvite/:docId", userHandler.DelInvite())
+		v1.POST("/users/removeReferral/:referralId", userHandler.RemveReferral())
+		v1.POST("/users/removeReferer/:refererId", userHandler.RemveReferer())
 
 	}
 	return router

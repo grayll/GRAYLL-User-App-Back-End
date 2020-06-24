@@ -59,12 +59,12 @@ type ReportDataSetting struct {
 }
 
 type Contact struct {
-	Name          string `json:"name"`
-	LName         string `json:"lname"`
-	Email         string `json:"email"`
-	BussinessName string `json:"bussinessName"`
-	Phone         string `json:"phone"`
-	RefererUid    string `json:"refererUid"`
-	RefererName   string `json:"rname"`
-	RefererLName  string `json:"rlname"`
+	Name         string `json:"name"`
+	LName        string `json:"lname"`
+	Email        string `json:"email"`
+	BusinessName string `json:"businessName"`
+	Phone        string `json:"phone"`
+	RefererUid   string `json:"refererUid"`
+	RefererName  string `json:"rname"`
+	RefererLName string `json:"rlname"`
 }

@@ -236,3 +236,13 @@ func GetCacheTxId(algoType, grayll_tx_id string) (string, string) {
 	}
 	return cacheTxId, unreadPath
 }
+
+func (cache *RedisCache) SetRefererUid(uid, refererUid string) {
+	cache.client.HSet("referer", uid, refererUid)
+}
+func (cache *RedisCache) GetRefererUid(uid string) string {
+	return cache.client.HGet("referer", uid).String()
+}
+func (cache *RedisCache) DelRefererUid(uid string) {
+	cache.client.HDel("referer", uid)
+}

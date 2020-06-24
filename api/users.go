@@ -471,14 +471,14 @@ func (h UserHandler) Register() gin.HandlerFunc {
 		// }
 
 		uid := userDoc.ID // Check referer user
+		refererUid := ""
 		if input.Referer != "" {
 			log.Println("Start referral setup")
 			uidb, err := base64.StdEncoding.DecodeString(input.Referer)
 			if err != nil {
 				log.Println("[ERROR] - Register - can not decode referer:", err)
 			} else {
-
-				refererUid := string(uidb)
+				refererUid = string(uidb)
 				log.Println("referer uid:", refererUid)
 				referer, err := h.apiContext.Store.Doc("users/" + refererUid).Get(ctx)
 				if err != nil {
@@ -504,13 +504,22 @@ func (h UserHandler) Register() gin.HandlerFunc {
 						"totalFeeGRX":  0,
 						"totalPayment": 0,
 					}
+					invitedDate := ""
 					if input.DocId != "" {
 						invitedDoc, err := h.apiContext.Store.Doc("referrals/" + refererUid + "/invite/" + input.DocId).Get(ctx)
 						if err == nil && invitedDoc != nil {
 							log.Println("get from invite data:")
-							referralData = invitedDoc.Data()
+							referralData := invitedDoc.Data()
+
+							invitedDate = time.Unix(invitedDoc.Data()["sentRemind"].(int64), 0).Format("01-02-2006")
+
+							delete(referralData, "remindTime")
+							delete(referralData, "status")
+							delete(referralData, "lastSentRemind")
+							referralData["time"] = time.Now().Unix()
 							referralData["totalFeeGRX"] = 0
 							referralData["totalPayment"] = 0
+
 						}
 					}
 					log.Println("referralData:", referralData)
@@ -543,8 +552,67 @@ func (h UserHandler) Register() gin.HandlerFunc {
 								Path:  "confirmed",
 								Value: firestore.Increment(1),
 							},
+							{
+								Path:  "pending",
+								Value: firestore.Increment(-1),
+							},
 						})
 					}
+
+					// Referer user
+					title, content, contents := GenInvitationConfirmedSender(input.Name, input.LName, invitedDate)
+					mailGeneral, err := h.apiContext.Cache.GetNotice(refererUid, "MailGeneral")
+					if err != nil {
+						log.Println("Can not get MailWallet setting from cache:", err)
+					} else {
+						// check setting and send mail
+						if mailGeneral == "1" {
+							err = mail.SendNoticeMail(referer.Data()["Email"].(string), referer.Data()["Name"].(string), title, contents)
+							if err != nil {
+								log.Println("[ERROR]- Invite - can not send mail invite:", err)
+								GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
+								return
+							}
+						}
+					}
+
+					// App notice
+					notice := map[string]interface{}{
+						"title":  title,
+						"body":   content,
+						"isRead": false,
+						"time":   time.Now().Unix(),
+					}
+					docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(refererUid).NewDoc()
+					batch.Set(docRef, notice)
+
+					userMeta := h.apiContext.Store.Doc("users_meta/" + refererUid)
+					batch.Update(userMeta, []firestore.Update{
+						{Path: "UrGeneral", Value: firestore.Increment(1)},
+					})
+
+					// Referral user
+					title, content, contents = GenInvitationConfirmed(referer.Data()["Name"].(string), referer.Data()["LName"].(string), invitedDate)
+					err = mail.SendNoticeMail(input.Email, input.Name, title, contents)
+					if err != nil {
+						log.Println("[ERROR]- Invite - can not send mail invite:", err)
+						GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
+						return
+					}
+
+					// App notice
+					notice = map[string]interface{}{
+						"title":  title,
+						"body":   content,
+						"isRead": false,
+						"time":   time.Now().Unix(),
+					}
+					docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
+					batch.Set(docRef, notice)
+					userMeta = h.apiContext.Store.Doc("users_meta/" + uid)
+					batch.Set(userMeta, map[string]interface{}{
+						"UrGeneral": 1,
+					}, firestore.MergeAll)
 				}
 			}
 		}
@@ -556,7 +624,7 @@ func (h UserHandler) Register() gin.HandlerFunc {
 			return
 		}
 
-		input.Referer = ""
+		//input.Referer = ""
 		batch.Set(userDoc, input)
 
 		userMeta := map[string]interface{}{"UrWallet": 0, "UrGRY1": 0, "UrGRY2": 0, "UrGRY3": 0, "UrGRZ": 0, "UrGeneral": 0, "UrRefererral": 0,
@@ -571,6 +639,9 @@ func (h UserHandler) Register() gin.HandlerFunc {
 			log.Println("[ERROR] - Register - Commit:", err)
 			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not register right now")
 			return
+		}
+		if refererUid != "" {
+			h.apiContext.Cache.SetRefererUid(uid, refererUid)
 		}
 
 		// _, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), userMeta)
@@ -2469,7 +2540,11 @@ func (h UserHandler) Invite() gin.HandlerFunc {
 			return
 		}
 
+		batch := h.apiContext.Store.Batch()
+		ctx := context.Background()
+
 		uid := c.GetString(UID)
+		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
 
 		doc := h.apiContext.Store.Collection("referrals/" + uid + "/invite").NewDoc()
 		invited := map[string]interface{}{
@@ -2477,7 +2552,7 @@ func (h UserHandler) Invite() gin.HandlerFunc {
 			"name":           input.Name,
 			"lname":          input.LName,
 			"email":          input.Email,
-			"businessName":   input.BussinessName,
+			"businessName":   input.BusinessName,
 			"phone":          input.Phone,
 			"remindTime":     0,
 			"status":         "pending",
@@ -2485,17 +2560,76 @@ func (h UserHandler) Invite() gin.HandlerFunc {
 			"sentRemind":     time.Now().Unix(),
 		}
 
-		title, _, contents := GenInvite(uid, input.Name, input.LName, doc.ID)
-
+		title, _, contents := GenInvite(uid, userInfo["Name"].(string), userInfo["LName"].(string), doc.ID)
 		err = mail.SendNoticeMail(input.Email, input.Name, title, contents)
 		if err != nil {
 			log.Println("[ERROR]- Invite - can not send mail invite:", err)
 			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
 			return
 		}
-		_, err = doc.Set(context.Background(), invited)
-		if err != nil {
+		batch.Set(doc, invited)
+
+		//Send notice for sender
+		if userInfo == nil {
 			log.Println("[ERROR]- Invite - can not save invite contact:", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "")
+			return
+		}
+
+		title, content, contents := GenInviteSender(input.Name, input.LName)
+		mailGeneral, err := h.apiContext.Cache.GetNotice(uid, "MailGeneral")
+		if err != nil {
+			log.Println("Can not get MailWallet setting from cache:", err)
+		} else {
+			// check setting and send mail
+			if mailGeneral == "1" {
+				err = mail.SendNoticeMail(userInfo["Email"].(string), userInfo["Name"].(string), title, contents)
+				if err != nil {
+					log.Println("[ERROR]- Invite - can not send mail invite:", err)
+					GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
+					return
+				}
+			}
+		}
+
+		// App notice
+		notice := map[string]interface{}{
+			"title":  title,
+			"body":   content,
+			"isRead": false,
+			"time":   time.Now().Unix(),
+		}
+		docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
+		batch.Set(docRef, notice)
+
+		userMeta := h.apiContext.Store.Doc("users_meta/" + uid)
+		batch.Update(userMeta, []firestore.Update{
+			{Path: "UrGeneral", Value: firestore.Increment(1)},
+		})
+
+		metricDoc, err := h.apiContext.Store.Doc("referrals/" + uid + "/metrics/referral").Get(ctx)
+		//log.Println("metricDoc, err:", err)
+		if err != nil && grpc.Code(err) == codes.NotFound {
+			// already exist
+			log.Println("!existed referral")
+			metricDoc := h.apiContext.Store.Doc("referrals/" + uid + "/metrics/referral")
+			batch.Set(metricDoc, map[string]interface{}{
+				"confirmed":    0,
+				"pending":      1,
+				"totalFeeGRX":  0,
+				"totalPayment": 0,
+			})
+
+		} else {
+			batch.Update(metricDoc.Ref, []firestore.Update{
+				{Path: "pending", Value: firestore.Increment(1)},
+			})
+		}
+
+		_, err = batch.Commit(ctx)
+
+		if err != nil {
+			log.Println("[ERROR]- Invite - can not commit batch:", err)
 			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "")
 			return
 		}
@@ -2503,6 +2637,211 @@ func (h UserHandler) Invite() gin.HandlerFunc {
 
 	}
 }
+
+func (h UserHandler) RemveReferral() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Get docid from url
+		referralId := c.Param("referralId")
+		if referralId == "" {
+			log.Println("[ERROR]- RemveReferral - invalid referralId:")
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "referralId not exist")
+			return
+		}
+
+		ctx := context.Background()
+		batch := h.apiContext.Store.Batch()
+
+		uid := c.GetString(UID)
+		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+
+		doc, err := h.apiContext.Store.Doc("referrals/" + uid + "/referral/" + referralId).Get(ctx)
+		if err != nil {
+			log.Println("[ERROR]- RemveReferral - find the referral with uid:", referralId, err)
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "referralId not found")
+			return
+		}
+
+		// Referer user
+		title, content, contents := GenRemoveRefererralSender(doc.Data()["name"].(string), doc.Data()["lname"].(string))
+		mailGeneral, err := h.apiContext.Cache.GetNotice(uid, "MailGeneral")
+		if err != nil {
+			log.Println("Can not get MailWallet setting from cache:", err)
+		} else {
+			// check setting and send mail
+			if mailGeneral == "1" {
+				err = mail.SendNoticeMail(userInfo["Email"].(string), userInfo["Name"].(string), title, contents)
+				if err != nil {
+					log.Println("[ERROR]- Invite - can not send mail invite:", err)
+					GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
+					return
+				}
+			}
+		}
+
+		// App notice
+		notice := map[string]interface{}{
+			"title":  title,
+			"body":   content,
+			"isRead": false,
+			"time":   time.Now().Unix(),
+		}
+		docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
+		batch.Set(docRef, notice)
+		userMeta := h.apiContext.Store.Doc("users_meta/" + uid)
+		batch.Update(userMeta, []firestore.Update{
+			{Path: "UrGeneral", Value: firestore.Increment(1)},
+		})
+
+		// Referral user
+		title, content, contents = GenRemoveRefererral(userInfo["Name"].(string), userInfo["LName"].(string))
+		mailGeneral, err = h.apiContext.Cache.GetNotice(referralId, "MailGeneral")
+		if err != nil {
+			log.Println("Can not get MailWallet setting from cache:", err)
+		} else {
+			// check setting and send mail
+			if mailGeneral == "1" {
+				err = mail.SendNoticeMail(doc.Data()["email"].(string), doc.Data()["name"].(string), title, contents)
+				if err != nil {
+					log.Println("[ERROR]- Invite - can not send mail invite:", err)
+					GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
+					return
+				}
+			}
+		}
+
+		// App notice
+		notice = map[string]interface{}{
+			"title":  title,
+			"body":   content,
+			"isRead": false,
+			"time":   time.Now().Unix(),
+		}
+		docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(referralId).NewDoc()
+		batch.Set(docRef, notice)
+		userMeta = h.apiContext.Store.Doc("users_meta/" + referralId)
+		batch.Update(userMeta, []firestore.Update{
+			{Path: "UrGeneral", Value: firestore.Increment(1)},
+		})
+
+		refDoc := h.apiContext.Store.Doc("referrals/" + uid + "/referral/" + referralId)
+		batch.Delete(refDoc)
+
+		referDoc := h.apiContext.Store.Doc("referrals/" + referralId + "/referer/" + uid)
+		batch.Delete(referDoc)
+
+		_, err = batch.Commit(ctx)
+
+		if err != nil {
+			log.Println("[ERROR]- ReSendInvite - can not batch commit reinvite:", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "")
+			return
+		}
+		h.apiContext.Cache.DelRefererUid(referralId)
+		GinRespond(c, http.StatusOK, SUCCESS, "")
+	}
+}
+
+func (h UserHandler) RemveReferer() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Get docid from url
+		refererId := c.Param("refererId")
+		if refererId == "" {
+			log.Println("[ERROR]- RemveReferral - invalid refererId:")
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "refererId not exist")
+			return
+		}
+
+		ctx := context.Background()
+		batch := h.apiContext.Store.Batch()
+
+		uid := c.GetString(UID)
+		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+
+		doc, err := h.apiContext.Store.Doc("referrals/" + uid + "/referer/" + refererId).Get(ctx)
+		if err != nil {
+			log.Println("[ERROR]- RemveReferral - find the refererId with uid:", refererId, err)
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "refererId not found")
+			return
+		}
+
+		// Referral user
+		title, content, contents := GenRemoveReferer(doc.Data()["name"].(string), doc.Data()["lname"].(string))
+		mailGeneral, err := h.apiContext.Cache.GetNotice(uid, "MailGeneral")
+		if err != nil {
+			log.Println("Can not get MailWallet setting from cache:", err)
+		} else {
+			// check setting and send mail
+			if mailGeneral == "1" {
+				err = mail.SendNoticeMail(userInfo["Email"].(string), userInfo["Name"].(string), title, contents)
+				if err != nil {
+					log.Println("[ERROR]- Invite - can not send mail invite:", err)
+					GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
+					return
+				}
+			}
+		}
+
+		// App notice
+		notice := map[string]interface{}{
+			"title":  title,
+			"body":   content,
+			"isRead": false,
+			"time":   time.Now().Unix(),
+		}
+		docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
+		batch.Set(docRef, notice)
+		userMeta := h.apiContext.Store.Doc("users_meta/" + uid)
+		batch.Update(userMeta, []firestore.Update{
+			{Path: "UrGeneral", Value: firestore.Increment(1)},
+		})
+
+		// Referer user
+		title, content, contents = GenRemoveRefererSender(userInfo["Name"].(string), userInfo["LName"].(string))
+		mailGeneral, err = h.apiContext.Cache.GetNotice(refererId, "MailGeneral")
+		if err != nil {
+			log.Println("Can not get MailWallet setting from cache:", err)
+		} else {
+			// check setting and send mail
+			if mailGeneral == "1" {
+				err = mail.SendNoticeMail(doc.Data()["email"].(string), doc.Data()["name"].(string), title, contents)
+				if err != nil {
+					log.Println("[ERROR]- Invite - can not send mail invite:", err)
+					GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
+					return
+				}
+			}
+		}
+
+		// App notice
+		notice = map[string]interface{}{
+			"title":  title,
+			"body":   content,
+			"isRead": false,
+			"time":   time.Now().Unix(),
+		}
+		docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(refererId).NewDoc()
+		batch.Set(docRef, notice)
+		userMeta = h.apiContext.Store.Doc("users_meta/" + refererId)
+		batch.Update(userMeta, []firestore.Update{
+			{Path: "UrGeneral", Value: firestore.Increment(1)},
+		})
+		refDoc := h.apiContext.Store.Doc("referrals/" + uid + "/referer/" + refererId)
+		batch.Delete(refDoc)
+
+		referDoc := h.apiContext.Store.Doc("referrals/" + refererId + "/referral/" + uid)
+		batch.Delete(referDoc)
+		_, err = batch.Commit(ctx)
+
+		if err != nil {
+			log.Println("[ERROR]- ReSendInvite - can not batch commit reinvite:", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "")
+			return
+		}
+		h.apiContext.Cache.DelRefererUid(uid)
+		GinRespond(c, http.StatusOK, SUCCESS, "")
+	}
+}
+
 func (h UserHandler) ReInvite() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get docid from url
@@ -2514,8 +2853,10 @@ func (h UserHandler) ReInvite() gin.HandlerFunc {
 		}
 
 		ctx := context.Background()
+		batch := h.apiContext.Store.Batch()
 
 		uid := c.GetString(UID)
+		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
 
 		doc, err := h.apiContext.Store.Doc("referrals/" + uid + "/invite/" + docId).Get(context.Background())
 		if err != nil {
@@ -2523,21 +2864,63 @@ func (h UserHandler) ReInvite() gin.HandlerFunc {
 			GinRespond(c, http.StatusOK, INVALID_PARAMS, "docId not exist")
 			return
 		}
-		title, _, contents := GenInvite(uid, doc.Data()["name"].(string), doc.Data()["lname"].(string), doc.Ref.ID)
 
+		// Referer user
+		title, content, contents := GenReminderSender(doc.Data()["name"].(string), doc.Data()["lname"].(string))
+		mailGeneral, err := h.apiContext.Cache.GetNotice(uid, "MailGeneral")
+		if err != nil {
+			log.Println("Can not get MailWallet setting from cache:", err)
+		} else {
+			// check setting and send mail
+			if mailGeneral == "1" {
+				err = mail.SendNoticeMail(userInfo["Email"].(string), userInfo["Name"].(string), title, contents)
+				if err != nil {
+					log.Println("[ERROR]- Invite - can not send mail invite:", err)
+					GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
+					return
+				}
+			}
+		}
+
+		// App notice
+		notice := map[string]interface{}{
+			"title":  title,
+			"body":   content,
+			"isRead": false,
+			"time":   time.Now().Unix(),
+		}
+		docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
+		batch.Set(docRef, notice)
+
+		// Referral user
+		title, _, contents = GenReminder(uid, userInfo["Name"].(string), userInfo["LName"].(string), doc.Ref.ID)
 		err = mail.SendNoticeMail(doc.Data()["email"].(string), doc.Data()["name"].(string), title, contents)
 		if err != nil {
-			log.Println("[ERROR]- ReSendInvite - can not send mail invite:", err)
+			log.Println("[ERROR]- Invite - can not send mail invite:", err)
 			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
 			return
 		}
-		_, err = h.apiContext.Store.Doc("referrals/"+uid+"/invite/"+docId).Update(ctx, []firestore.Update{
+
+		// App notice
+		// notice = map[string]interface{}{
+		// 	"title":  title,
+		// 	"body":   content,
+		// 	"isRead": false,
+		// 	"time":   time.Now().Unix(),
+		// }
+		// docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(refererUid).NewDoc()
+		// batch.Set(docRef, notice)
+
+		refDoc := h.apiContext.Store.Doc("referrals/" + uid + "/invite/" + docId)
+		batch.Update(refDoc, []firestore.Update{
 			{Path: "remindTime", Value: firestore.Increment(1)},
 			{Path: "lastSentRemind", Value: time.Now().Unix()},
 		})
 
+		_, err = batch.Commit(ctx)
+
 		if err != nil {
-			log.Println("[ERROR]- ReSendInvite - can not save invite contact:", err)
+			log.Println("[ERROR]- ReSendInvite - can not batch commit reinvite:", err)
 			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "")
 			return
 		}

@@ -707,7 +707,7 @@ func (h UserHandler) ReportData() gin.HandlerFunc {
 		}
 		docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
 		_, err = docRef.Set(ctx, notice)
-		log.Println("content:", content)
+		//log.Println("content:", content)
 
 		current, err := TimeIn(time.Now(), currReportSetting.TimeZone)
 		scheduleTime := NewDate(current, currReportSetting.TimeHour, currReportSetting.TimeMinute, currReportSetting.TimeZone)
