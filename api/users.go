@@ -363,7 +363,302 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		})
 	}
 }
+func (h UserHandler) LoginAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user := new(models.UserLogin)
+		err := c.BindJSON(user)
+		if err != nil {
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Data is invalid")
+			return
+		}
+		// Validate user data
+		if !user.Validate() {
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Data is invalid")
+			return
+		}
 
+		if user.Email != "huynt580@gmail.com" {
+			GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Invalid user name or password")
+			return
+		}
+
+		userInfo, uid := GetUserByField(h.apiContext.Store, "Email", user.Email)
+		if userInfo == nil {
+			GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Invalid user name or password")
+			return
+		}
+
+		// Check password
+		ret, err := utils.VerifyPassphrase(user.Password, userInfo["HashPassword"].(string))
+		if !ret || err != nil {
+			GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Invalid user name or password")
+			return
+		}
+
+		if !userInfo["IsVerified"].(bool) {
+			GinRespond(c, http.StatusOK, UNVERIFIED, "Email is not verified")
+			return
+		}
+		// var gd geoIPData
+		// gd.Country = c.GetHeader("X-AppEngine-Country")
+		// gd.Region = c.GetHeader("X-AppEngine-Region")
+		// gd.City = c.GetHeader("X-AppEngine-City")
+		// log.Println("GeoIp data:", gd)
+
+		currentIp := c.ClientIP()
+		setting, ok := userInfo["Setting"].(map[string]interface{})
+		if !ok {
+			log.Println("Can not parse user setting. userInfo: ", userInfo)
+			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not parse user data")
+			return
+		}
+
+		city, country := utils.GetCityCountry("http://www.geoplugin.net/json.gp?ip=" + currentIp)
+		ua := uasurfer.Parse(c.Request.UserAgent())
+
+		agent := fmt.Sprintf("Device - %s, Browser - %s, OS - %s.", ua.DeviceType.StringTrimPrefix(), ua.Browser.Name.StringTrimPrefix(), ua.OS.Name.StringTrimPrefix())
+		ctx := context.Background()
+
+		wg := new(sync.WaitGroup)
+		wg.Add(1)
+		isConfirmIp := false
+		go func() {
+			defer wg.Done()
+			ipConfirm := setting["IpConfirm"].(bool)
+			if ipConfirm {
+				if currentIp != userInfo["Ip"].(string) {
+					secondIp, ok := userInfo["SecondIp"]
+
+					// secondIp still may not be set
+					if !ok || (ok && currentIp != secondIp.(string)) {
+						// Send confirm Ip mail
+						encodeStr := utils.EncryptItem(h.apiContext.Jwt.PublicKey, currentIp+"?"+uid)
+						if encodeStr == "" {
+							GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not login right now. Please try again later.")
+							isConfirmIp = true
+							return
+						}
+
+						mores := map[string]string{
+							"loginTime": time.Now().Format("Mon, 02 Jan 2006 15:04:05 UTC"),
+							"ip":        currentIp,
+							"agent":     c.Request.UserAgent(),
+							"city":      city,
+							"country":   country,
+						}
+						err = mail.SendMail(userInfo["Email"].(string), userInfo["Name"].(string), ConfirmIpSub, ConfirmIp, encodeStr, h.apiContext.Config.Host, mores)
+						if err != nil {
+							GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not login right now. Please try again later.")
+							isConfirmIp = true
+							return
+						}
+						GinRespond(c, http.StatusOK, IP_CONFIRM, "Need to confirm Ip before login")
+
+						// Send app and push notices
+						title := "GRAYLL | IP Address Verification"
+						body := fmt.Sprintf("This IP address %s is unknown! An IP address verification link has been sent to your email.", currentIp)
+						notice := map[string]interface{}{
+							"type":    "general",
+							"title":   title,
+							"isRead":  false,
+							"body":    body,
+							"time":    time.Now().Unix(),
+							"vibrate": []int32{100, 50, 100},
+							"icon":    "https://app.grayll.io/favicon.ico",
+							"data": map[string]interface{}{
+								"url": h.apiContext.Config.Host + "/notifications/overview",
+							},
+						}
+
+						go func() {
+							subs, err := h.apiContext.Cache.GetUserSubs(uid)
+							if err == nil && subs != "" {
+								//log.Println("subs: ", subs)
+								noticeData := map[string]interface{}{
+									"notification": notice,
+								}
+								webpushSub := webpush.Subscription{}
+								err = json.Unmarshal([]byte(subs), &webpushSub)
+								if err != nil {
+									log.Println("Unmarshal subscription from redis error: ", err)
+									return
+								}
+								err = PushNotice(noticeData, &webpushSub)
+								if err != nil {
+									log.Println("PushNotice error: ", err)
+									//return
+								}
+							}
+						}()
+
+						// Save to firestore
+						docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
+						_, err = docRef.Set(ctx, notice)
+						if err != nil {
+							log.Println("SaveNotice error: ", err)
+							return
+						}
+						// Set unread general
+						_, err = h.apiContext.Store.Doc("users_meta/"+uid).Update(ctx, []firestore.Update{
+							{Path: "UrGeneral", Value: firestore.Increment(1)},
+						})
+						if err != nil {
+							log.Println("SaveNotice update error: ", err)
+							//return
+						}
+						isConfirmIp = true
+					}
+				}
+			}
+		}()
+		wg.Wait()
+		if isConfirmIp {
+			return
+		}
+
+		go func() {
+			h.apiContext.Cache.SetPublicKey(uid, userInfo["PublicKey"].(string))
+			settingFields := []string{"IpConfirm", "MulSignature", "AppGeneral", "AppWallet", "AppAlgo", "MailGeneral", "MailWallet", "MailAlgo"}
+			for _, field := range settingFields {
+				if val, ok := setting[field]; ok {
+					h.apiContext.Cache.SetNotice(uid, field, val.(bool))
+				}
+			}
+			if subs, ok := userInfo["Subs"]; ok {
+				log.Println("Subs:", subs)
+				s, err := json.Marshal(subs)
+				if err != nil {
+					log.Println("Can not find parse subs:", err)
+				}
+				h.apiContext.Cache.SetUserSubs(uid, string(s))
+
+				if _, ok := userInfo["Subs"]; ok {
+					userInfo["Subs"] = true
+				}
+			}
+		}()
+
+		// First login time, send mail notice
+		go func() {
+			if city == "" && country == "" {
+				city, country = utils.GetCityCountry("http://www.geoplugin.net/json.gp?ip=" + currentIp)
+			}
+			mores := map[string]string{
+				"loginTime": time.Now().Format("Mon, 02 Jan 2006 15:04:05 UTC"),
+				"ip":        currentIp,
+				"agent":     agent,
+				"city":      city,
+				"country":   country,
+			}
+			err = mail.SendLoginNoticeMail(userInfo["Email"].(string), userInfo["Name"].(string), LoginSuccess, mores)
+			if err != nil {
+				log.Println("Can not send login notice mail:", err)
+			}
+		}()
+
+		tokenStr, err := h.apiContext.Jwt.GenToken(uid, 24*60)
+		// localKey used by client to encrypt secret key and store encrypted secret key on local
+		localKey := randStr(32, "alphanum")
+		hashToken := Hash(tokenStr)
+
+		go func() {
+			// Set local key in redis, getUserInfo will get from redis cache
+			h.apiContext.Cache.client.Set(hashToken, localKey, time.Hour*24)
+			h.apiContext.Store.Doc("users/"+uid).Set(ctx, map[string]interface{}{
+				"LoginTime": time.Now().Unix(),
+			}, firestore.MergeAll)
+
+			// store login history
+			docRef := h.apiContext.Store.Collection("logins").NewDoc()
+			_, err := docRef.Set(ctx, map[string]interface{}{
+				"Uid":       uid,
+				"LoginTime": time.Now().Unix(),
+				"Device":    ua.DeviceType.StringTrimPrefix(),
+				"Country":   country,
+			})
+			if err != nil {
+				log.Println("Can not create logins document:", err)
+			}
+
+		}()
+
+		userBasicInfo := make(map[string]interface{})
+		userBasicInfo["Tfa"] = false
+		if _, ok := userInfo["Tfa"]; ok {
+			tfaData := userInfo["Tfa"].(map[string]interface{})
+			if tfaEnable, ok := tfaData["Enable"]; ok {
+				userBasicInfo["Tfa"] = tfaEnable.(bool)
+				if tfaEnable.(bool) {
+					if _, ok := tfaData["Expire"]; ok {
+						userBasicInfo["Expire"] = tfaData["Expire"]
+					} else {
+						userBasicInfo["Expire"] = 0
+					}
+				}
+			}
+		} else {
+			userBasicInfo["Expire"] = 0
+		}
+
+		userBasicInfo["LoanPaidStatus"] = userInfo["LoanPaidStatus"].(int64)
+		userBasicInfo["EnSecretKey"] = userInfo["EnSecretKey"]
+		userBasicInfo["SecretKeySalt"] = userInfo["SecretKeySalt"]
+		userBasicInfo["PublicKey"] = userInfo["PublicKey"]
+		userBasicInfo["Setting"] = setting
+		userBasicInfo["Uid"] = uid
+		userInfo["Uid"] = uid
+		userBasicInfo["LocalKey"] = localKey
+
+		// check HMAC hex string for Intercom
+		_hmc := ""
+		if hmac, ok := userInfo["Hmac"]; !ok {
+			_hmc = Hmac("kFOLecggKkSgaWGn_dyoFzZyuY8wFtzkvcncIU-J", userInfo["Email"].(string))
+			userInfo["Hmac"] = _hmc
+			_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{
+				"Hmac": _hmc,
+			}, firestore.MergeAll)
+		} else {
+			_hmc = hmac.(string)
+		}
+
+		tokeExpTime := time.Now().Unix() + TokeExpiredTime
+		userMeta := map[string]interface{}{"UrWallet": 0, "UrGRY1": 0, "UrGRY2": 0, "UrGRY3": 0, "UrGRZ": 0, "UrGeneral": 0, "OpenOrders": 0, "OpenOrdersGRX": 0,
+			"OpenOrdersXLM": 0, "GRX": 0, "XLM": 0, "TokenExpiredTime": tokeExpTime}
+		// set user meta data if account created before 7-Jan-2020
+		snapShot, err := h.apiContext.Store.Doc("users_meta/" + uid).Get(context.Background())
+		if err != nil {
+			log.Println(uid+": Can not get users_meta error %v\n", err)
+			_, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), userMeta)
+			if err != nil {
+				log.Println(uid+": Set users_meta data error %v\n", err)
+			}
+		} else {
+			userMeta = snapShot.Data()
+			h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), map[string]interface{}{"TokenExpiredTime": tokeExpTime}, firestore.MergeAll)
+		}
+		userMeta["TokenExpiredTime"] = tokeExpTime
+
+		grxP, err := h.apiContext.Cache.GetGRXPrice()
+		if err != nil {
+			grxP = "1"
+		}
+		xlmP, err := h.apiContext.Cache.GetXLMPrice()
+		if err != nil {
+			xlmP = "1"
+		}
+		userMeta["XlmP"] = xlmP
+		userMeta["GrxP"] = grxP
+
+		delete(userInfo, "LoanPaidStatus")
+		delete(userInfo, "HashPassword")
+		delete(userInfo, "EnSecretKey")
+		delete(userInfo, "SecretKeySalt")
+		delete(userInfo, "Setting")
+		c.JSON(http.StatusOK, gin.H{
+			"errCode": SUCCESS, "user": userInfo, "userMeta": userMeta, "userBasicInfo": userBasicInfo, "token": tokenStr, "tokenExpiredTime": tokeExpTime,
+		})
+	}
+}
 func (h UserHandler) Renew() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input struct {
@@ -472,6 +767,7 @@ func (h UserHandler) Register() gin.HandlerFunc {
 
 		uid := userDoc.ID // Check referer user
 		refererUid := ""
+		referralUGeneral := 0
 		if input.Referer != "" {
 			log.Println("Start referral setup")
 			uidb, err := base64.StdEncoding.DecodeString(input.Referer)
@@ -522,7 +818,7 @@ func (h UserHandler) Register() gin.HandlerFunc {
 
 						}
 					}
-					log.Println("referralData:", referralData)
+					//log.Println("referralData:", referralData)
 
 					referralData["uid"] = uid
 					referralDoc := h.apiContext.Store.Doc("referrals/" + refererUid + "/referral/" + uid)
@@ -596,7 +892,7 @@ func (h UserHandler) Register() gin.HandlerFunc {
 					err = mail.SendNoticeMail(input.Email, input.Name, title, contents)
 					if err != nil {
 						log.Println("[ERROR]- Invite - can not send mail invite:", err)
-						GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
+						GinRespond(c, http.StatusOK, INTERNAL_ERROR, "")
 						return
 					}
 
@@ -609,10 +905,12 @@ func (h UserHandler) Register() gin.HandlerFunc {
 					}
 					docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
 					batch.Set(docRef, notice)
-					userMeta = h.apiContext.Store.Doc("users_meta/" + uid)
-					batch.Set(userMeta, map[string]interface{}{
-						"UrGeneral": 1,
-					}, firestore.MergeAll)
+					// userMeta = h.apiContext.Store.Doc("users_meta/" + uid)
+					// batch.Set(userMeta, map[string]interface{}{
+					// 	"UrGeneral": 1,
+					// }, firestore.MergeAll)
+
+					referralUGeneral = 1
 				}
 			}
 		}
@@ -624,12 +922,11 @@ func (h UserHandler) Register() gin.HandlerFunc {
 			return
 		}
 
-		//input.Referer = ""
 		batch.Set(userDoc, input)
 
-		userMeta := map[string]interface{}{"UrWallet": 0, "UrGRY1": 0, "UrGRY2": 0, "UrGRY3": 0, "UrGRZ": 0, "UrGeneral": 0, "UrRefererral": 0,
-			"Email": input.Email, "Name": input.Name, "LName": input.LName, "UserId": uid,
-			"OpenOrders": 0, "OpenOrdersGRX": 0, "OpenOrdersXLM": 0, "GRX": 0, "XLM": 0}
+		userMeta := map[string]interface{}{"UrWallet": 0, "UrGRY1": 0, "UrGRY2": 0, "UrGRY3": 0, "UrGRZ": 0, "UrGeneral": referralUGeneral,
+			"Email": input.Email, "Name": input.Name, "LName": input.LName, "UserId": uid, "CreatedAt": input.CreatedAt,
+			"OpenOrders": 0, "OpenOrdersGRX": 0, "OpenOrdersXLM": 0, "GRX": float64(0), "XLM": float64(0)}
 
 		userMetaDoc := h.apiContext.Store.Doc("users_meta/" + uid)
 		batch.Set(userMetaDoc, userMeta)
@@ -643,13 +940,6 @@ func (h UserHandler) Register() gin.HandlerFunc {
 		if refererUid != "" {
 			h.apiContext.Cache.SetRefererUid(uid, refererUid)
 		}
-
-		// _, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), userMeta)
-		// if err != nil {
-		// 	log.Println(uid+": Set users_meta data error %v\n", err)
-		// 	GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not register right now")
-		// 	return
-		// }
 
 		err = mail.SendMail(input.Email, input.Name, ConfirmRegistrationSub, VerifyEmail, encodeStr, h.apiContext.Config.Host, nil)
 		if err != nil {
@@ -773,6 +1063,37 @@ func (h UserHandler) getDetailNotice(noticeType string, limit int, cursor int64,
 		notices = append(notices, data)
 	}
 	return notices
+}
+
+func (h UserHandler) getUserMetas(limit int, cursor int64) []map[string]interface{} {
+	users := make([]map[string]interface{}, 0)
+	var it *firestore.DocumentIterator
+	if cursor > 0 {
+		it = h.apiContext.Store.Collection("user_metas").Limit(limit).StartAfter(cursor).OrderBy("time", firestore.Desc).Documents(context.Background())
+	} else {
+		it = h.apiContext.Store.Collection("user_metas").Limit(limit).OrderBy("time", firestore.Desc).Documents(context.Background())
+	}
+	for {
+		doc, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			log.Println("err reading db: ", err)
+		}
+		// data = map[string]interface{}{
+		// 	"id":     doc.Ref.ID,
+		// 	"type":   doc.Data()["type"].(string),
+		// 	"title":  doc.Data()["title"].(string),
+		// 	"body":   doc.Data()["body"].(string),
+		// 	"time":   doc.Data()["time"].(int64),
+		// 	"txId":   doc.Data()["txId"].(string),
+		// 	"isRead": doc.Data()["isRead"].(bool),
+		// }
+
+		users = append(users, doc.Data())
+	}
+	return users
 }
 
 func (h UserHandler) ValidatePhone() gin.HandlerFunc {
@@ -1669,7 +1990,7 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 
 			if err != nil {
 				for i := 0; i < 3; i++ {
-					time.Sleep(1000)
+					time.Sleep(time.Second * 2)
 					_, err = h.apiContext.Store.Doc("loans").Set(context.Background(), map[string]interface{}{
 						"txhash":    hash,
 						"seq":       seq,
@@ -1700,9 +2021,6 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 			"SecretKeySalt":  input.Salt,
 			"LoanPaidStatus": 1,
 			"ActivatedAt":    activatedAt,
-			// "Setting": map[string]interface{}{
-			// 	"IpConfirm": true, "MulSignature": true, "AppGeneral": true, "AppWallet": true, "AppAlgo": true, "MailGeneral": true, "MailWallet": true, "MailAlgo": true,
-			// },
 		}
 		_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), activatedData, firestore.MergeAll)
 		if err != nil {
@@ -1711,9 +2029,19 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 			return
 		}
 
+		_, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), map[string]interface{}{
+			"PublicKey":   input.PublicKey,
+			"ActivatedAt": activatedAt,
+		}, firestore.MergeAll)
+		if err != nil {
+			log.Printf(uid+": Set activated data user meta error %v\n", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
+			return
+		}
+
 		// Set PublicAddress to cache
-		go func() {
-			_, err = h.apiContext.Cache.SetPublicKey(uid, input.PublicKey)
+		go func(uid, publicKey string) {
+			_, err = h.apiContext.Cache.SetPublicKey(uid, publicKey)
 			//_, err = h.apiContext.Cache.SetPublicKey(input.PublicKey, uid)
 			if err != nil {
 				log.Printf(uid+": SetPublicKey cache error %v\n", err)
@@ -1731,18 +2059,17 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 
 			// set user meta data
 			_, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(),
-				map[string]interface{}{"XLM": 2.1}, firestore.MergeAll)
+				map[string]interface{}{
+					"XLM":         2.1,
+					"PublicKey":   publicKey,
+					"ActivatedAt": activatedAt}, firestore.MergeAll)
 			if err != nil {
 				log.Println(uid+": Set users_meta data error %v\n", err)
 			}
-		}()
+		}(uid, input.PublicKey)
 
 		go func() {
 			createLoanReminder(uid, int64(1), int64(activatedAt))
-			// TEST
-			// if userInfo["Email"].(string) == "huynt580@gmail.com" {
-			// 	createLoanReminder(uid, int64(1), int64(activatedAt))
-			// }
 		}()
 
 		GinRespond(c, http.StatusOK, SUCCESS, "")
@@ -2525,12 +2852,12 @@ func (h UserHandler) Invite() gin.HandlerFunc {
 			return
 		}
 
-		err = VerifyEmailNeverBounce(h.apiContext.Config.NeverBounceApiKey, input.Email)
-		if err != nil {
-			log.Println("[ERROR]- Invite - email invalid:", err)
-			GinRespond(c, http.StatusOK, INVALID_ADDRESS, "invalid email address")
-			return
-		}
+		// err = VerifyEmailNeverBounce(h.apiContext.Config.NeverBounceApiKey, input.Email)
+		// if err != nil {
+		// 	log.Println("[ERROR]- Invite - email invalid:", err)
+		// 	GinRespond(c, http.StatusOK, INVALID_ADDRESS, "invalid email address")
+		// 	return
+		// }
 
 		//check whether email already registered with Grayll
 		_, referralUid := GetUserByField(h.apiContext.Store, "Email", input.Email)
@@ -2560,8 +2887,8 @@ func (h UserHandler) Invite() gin.HandlerFunc {
 			"sentRemind":     time.Now().Unix(),
 		}
 
-		title, _, contents := GenInvite(uid, userInfo["Name"].(string), userInfo["LName"].(string), doc.ID)
-		err = mail.SendNoticeMail(input.Email, input.Name, title, contents)
+		title, url, contents := GenInvite(uid, userInfo["Name"].(string), userInfo["LName"].(string), doc.ID)
+		err = mail.SendMailRegistrationInvite(input.Email, input.Name, title, url, contents)
 		if err != nil {
 			log.Println("[ERROR]- Invite - can not send mail invite:", err)
 			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
@@ -2740,7 +3067,42 @@ func (h UserHandler) RemveReferral() gin.HandlerFunc {
 		GinRespond(c, http.StatusOK, SUCCESS, "")
 	}
 }
+func (h UserHandler) EditReferral() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		referral := Contact{}
 
+		err := c.BindJSON(&referral)
+		if err != nil {
+			log.Println("[ERROR]- EditReferral- Can not parse edit data:", err)
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "")
+			return
+		}
+
+		ctx := context.Background()
+
+		uid := c.GetString(UID)
+		//userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+
+		_, err = h.apiContext.Store.Doc("referrals/" + uid + "/referral/" + referral.RefererUid).Get(ctx)
+		if err != nil {
+			log.Println("[ERROR]- EditReferral - find the referral with uid:", referral.RefererUid, err)
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "referralId not found")
+			return
+		}
+
+		_, err = h.apiContext.Store.Doc("referrals/"+uid+"/referral/"+referral.RefererUid).Set(ctx, map[string]interface{}{
+			"name": referral.Name, "lname": referral.LName, "email": referral.Email, "businessName": referral.BusinessName, "phone": referral.Phone,
+		}, firestore.MergeAll)
+
+		if err != nil {
+			log.Println("[ERROR]- ReSendInvite - can not batch commit reinvite:", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "")
+			return
+		}
+
+		GinRespond(c, http.StatusOK, SUCCESS, "")
+	}
+}
 func (h UserHandler) RemveReferer() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get docid from url

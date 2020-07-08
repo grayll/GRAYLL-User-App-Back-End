@@ -150,6 +150,7 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 	v1.POST("/accounts/register", userHandler.Register())
 	v1.GET("/accounts/validatecode", userHandler.ValidateCode())
 	v1.POST("/accounts/login", userHandler.Login())
+	v1.POST("/accounts/loginadmin", userHandler.LoginAdmin())
 	v1.POST("/accounts/resendemail", userHandler.ResendEmailConfirm())
 	v1.POST("/accounts/mailresetpassword", userHandler.SendEmailResetPwd())
 	v1.POST("/accounts/resetpassword", userHandler.ResetPassword())
@@ -208,6 +209,7 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 		v1.POST("/users/delinvite/:docId", userHandler.DelInvite())
 		v1.POST("/users/removeReferral/:referralId", userHandler.RemveReferral())
 		v1.POST("/users/removeReferer/:refererId", userHandler.RemveReferer())
+		v1.POST("/users/editreferral", userHandler.EditReferral())
 
 	}
 	return router

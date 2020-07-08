@@ -3,15 +3,21 @@ package api
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"strings"
 
 	"testing"
-	//"time"
+
+	"bitbucket.org/grayll/grayll.io-user-app-back-end/mail"
 )
 
 func TestVerifyEmail(t *testing.T) {
 	//VerifyEmailNeverBounce("private_f1db1a9eeccd5dd76347bf58596becf4", "huykbc@gmail.com")
-	VerifyEmailNeverBounce("private_f1db1a9eeccd5dd76347bf58596becf4", "huykbc1@gmail.com")
+	//VerifyEmailNeverBounce("private_f1db1a9eeccd5dd76347bf58596becf4", "huykbc1@gmail.com")
+	err := mail.SendMailRegistrationInvite("huykbc@gmail.com", "huy", "Sign up invite", "https://app.grayll.io", []string{"inviate", "test"})
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 func TestHmac(t *testing.T) {

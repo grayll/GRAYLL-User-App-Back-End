@@ -136,6 +136,29 @@ func (email *Email) GenMailWithContents(firstName string, contents []string) (st
 	}
 	return email.branch.GenerateHTML(emailBody)
 }
+
+func (email *Email) GenMailWithContentsAction(firstName, url string, contents []string) (string, error) {
+
+	emailBody := hermes.Email{
+		Body: hermes.Body{
+			Name:      firstName,
+			Greeting:  "Dear",
+			Signature: "With gratitude",
+			Intros:    contents,
+			Actions: []hermes.Action{
+				{
+					//Instructions: "Please click here to verify your email and get started.",
+					Button: hermes.Button{
+						Color: "#40278C", // Optional action button color
+						Text:  "SIGN UP",
+						Link:  url,
+					},
+				},
+			},
+		},
+	}
+	return email.branch.GenerateHTML(emailBody)
+}
 func (email *Email) GenMailLoanReminder(firstName, url string, contents []string, isPayoffButton bool) (string, error) {
 	var emailBody hermes.Email
 	if isPayoffButton {

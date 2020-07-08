@@ -17,7 +17,7 @@ func GenInvite(uid, name, lname, docId string) (string, string, []string) {
 	contents := []string{
 		//fmt.Sprintf(`Dear %s %s`, name, lname),
 
-		fmt.Sprintf(`%s %s has invited you to Sign Up (%s) for the GRAYLL App.`, name, lname, url),
+		fmt.Sprintf(`%s %s has invited you to Sign Up for the GRAYLL App.`, name, lname),
 
 		fmt.Sprintf(`GRAYLL is a Simple Automated Recession Proof Investment App — GRAYLL Intelligence advanced AI driven solutions automate Wealth Inception to help you increase your savings, investment & trading returns.`),
 
@@ -35,7 +35,7 @@ func GenInvite(uid, name, lname, docId string) (string, string, []string) {
 		}
 	}
 
-	return title, content, contents
+	return title, url, contents
 }
 
 func GenInviteSender(name, lname string) (string, string, []string) {

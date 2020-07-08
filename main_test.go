@@ -1,15 +1,21 @@
 package main
 
 import (
-	"fmt"
-	"time"
+	"context"
+
+	"cloud.google.com/go/firestore"
+
+	//"cloud.google.com/go/firestore"
+
+	// "fmt"
+	// "time"
 
 	"testing"
 
-	"context"
+	// "context"
 	"log"
 
-	"cloud.google.com/go/firestore"
+	//"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go"
 
 	"google.golang.org/api/iterator"
@@ -21,179 +27,20 @@ const (
 	UNIX_timestamp = "UNIX_timestamp"
 )
 
-func QueryGrz() {
-	//var startTs int64 = 1569949920 + int64(1440*60)
-	//var startTs int64 = 1563469200
-	var startTs int64 = 1572519421
-
-	ctx := context.Background()
-	opt := option.WithCredentialsFile("../grayll-mvp-firebase-adminsdk-jhq9x-cd9d4774ad.json")
-	app, err := firebase.NewApp(ctx, nil, opt)
-	if err != nil {
-		log.Fatalln("Error create new firebase app:", err)
-	}
-
-	client, err := app.Firestore(ctx)
-	if err != nil {
-		log.Fatalln("Error create new firebase app:", err)
-	}
-
-	//fsclient := FireStoreClient{client}
-	var curPrice float64
-	var curTime int64
-	//var pair string
-	docPath := "grz_price_frames/grzusd/frame_30m"
-	it := client.Collection(docPath).Where(UNIX_timestamp, ">", startTs).OrderBy(UNIX_timestamp, firestore.Asc).Limit(10).Documents(context.Background())
-	for {
-		doc, err := it.Next()
-		if err == iterator.Done {
-			return
-		}
-
-		if err != nil {
-			log.Println("Error get latest price: ", err)
-			return
-		}
-
-		curTime = doc.Data()[UNIX_timestamp].(int64)
-		//pair = doc.Data()["pair"].(string)
-		curPrice = doc.Data()["price"].(float64)
-
-		fmt.Printf("time: %d - price: %f \n", curTime, curPrice)
-		priceTime := time.Unix(curTime, 0).Format("2006-01-02 15:04:05")
-		fmt.Println("priceTime:", priceTime)
-
-		// Add missing data for next day
-		// client.Collection("pair_frames/gryusd/frame_01d").Add(context.Background(), map[string]interface{}{
-		// 	UNIX_timestamp: curTime,
-		// 	price:          curPrice,
-		// })
-
-	}
-
-}
-
-func DelGrz() {
-	//var startTs int64 = 1569949920 + int64(1440*60)
-	//var startTs int64 = 1563469200
-
-	var startTs int64 = 1572519421
-
-	ctx := context.Background()
-	opt := option.WithCredentialsFile("../grayll-mvp-firebase-adminsdk-jhq9x-cd9d4774ad.json")
-	app, err := firebase.NewApp(ctx, nil, opt)
-	if err != nil {
-		log.Fatalln("Error create new firebase app:", err)
-	}
-
-	client, err := app.Firestore(ctx)
-	if err != nil {
-		log.Fatalln("Error create new firebase app:", err)
-	}
-
-	//fsclient := FireStoreClient{client}
-	var curPrice float64
-	var curTime int64
-	//var pair string
-	docPaths := []string{"grz_price_frames/grzusd/frame_01m", "grz_price_frames/grzusd/frame_05m", "grz_price_frames/grzusd/frame_15m", "grz_price_frames/grzusd/frame_30m", "grz_price_frames/grzusd/frame_01h",
-		"grz_price_frames/grzusd/frame_04h", "grz_price_frames/grzusd/frame_01d"}
-
-	for _, docPath := range docPaths {
-		it := client.Collection(docPath).Where(UNIX_timestamp, "<", startTs).OrderBy(UNIX_timestamp, firestore.Desc).Limit(500).Documents(context.Background())
-		for {
-			doc, err := it.Next()
-			if err == iterator.Done {
-				return
-			}
-
-			if err != nil {
-				log.Println("Error get latest price: ", err)
-				return
-			}
-
-			curTime = doc.Data()[UNIX_timestamp].(int64)
-			//pair = doc.Data()["pair"].(string)
-			curPrice = doc.Data()["price"].(float64)
-
-			fmt.Printf("time: %d - price: %f \n", curTime, curPrice)
-			priceTime := time.Unix(curTime, 0).Format("2006-01-02 15:04:05")
-			fmt.Println("priceTime:", priceTime, doc.Ref.ID)
-
-			//client.Collection(docPath).Doc(doc.Ref.ID).Delete(ctx)
-
-			// Add missing data for next day
-			// client.Collection("pair_frames/gryusd/frame_01d").Add(context.Background(), map[string]interface{}{
-			// 	UNIX_timestamp: curTime,
-			// 	price:          curPrice,
-			// })
-
-		}
-	}
-
-}
-
 func TestVerify(t *testing.T) {
-	//QueryOriginalGry()
+	//QueryAlgoPosition()
+	checkExistUserMeta()
 }
-
-func QueryOriginalGrz() {
-	//var startTs int64 = 1569949920 + int64(1440*60)
-	//var startTs int64 = 1563469200
-
-	var startTs int64 = 1573636800 - 2*60*60
-
-	ctx := context.Background()
-	opt := option.WithCredentialsFile("../grayll-mvp-firebase-adminsdk-jhq9x-cd9d4774ad.json")
-	app, err := firebase.NewApp(ctx, nil, opt)
-	if err != nil {
-		log.Fatalln("Error create new firebase app:", err)
+func GetFloatValue(input interface{}) float64 {
+	switch input.(type) {
+	case int64:
+		return float64(input.(int64))
+	case float64:
+		return input.(float64)
 	}
-
-	client, err := app.Firestore(ctx)
-	if err != nil {
-		log.Fatalln("Error create new firebase app:", err)
-	}
-
-	//fsclient := FireStoreClient{client}
-	var curPrice float64
-	var curTime int64
-	//var pair string
-	docPath := "grz_price"
-	it := client.Collection(docPath).Where("UNIX_timestamp", ">=", startTs).OrderBy(UNIX_timestamp, firestore.Desc).Documents(context.Background())
-	for {
-		doc, err := it.Next()
-		if err == iterator.Done {
-			return
-		}
-
-		if err != nil {
-			log.Println("Error get latest price: ", err)
-			return
-		}
-
-		curTime = doc.Data()[UNIX_timestamp].(int64)
-		//pair = doc.Data()["pair"].(string)
-		curPrice = doc.Data()["price"].(float64)
-
-		priceTime := time.Unix(curTime, 0).Format("2006-01-02 15:04:05")
-		fmt.Printf("time: %d (%s) - price: %f \n", curTime, priceTime, curPrice)
-
-		// Add missing data for next day
-		// client.Collection("pair_frames/gryusd/frame_01d").Add(context.Background(), map[string]interface{}{
-		// 	UNIX_timestamp: curTime,
-		// 	price:          curPrice,
-		// })
-
-	}
-
+	return 0
 }
-
-func QueryOriginalGry() {
-	//var startTs int64 = 1569949920 + int64(1440*60)
-	//var startTs int64 = 1563469200
-
-	//	var startTs int64 = 1575684300
-
+func GetClient() (*firestore.Client, error) {
 	ctx := context.Background()
 	opt := option.WithCredentialsFile("./grayll-app-f3f3f3-firebase-adminsdk-vhclm-e074da6170.json")
 	app, err := firebase.NewApp(ctx, nil, opt)
@@ -201,85 +48,81 @@ func QueryOriginalGry() {
 		log.Fatalln("Error create new firebase app:", err)
 	}
 
-	client, err := app.Firestore(ctx)
+	return app.Firestore(ctx)
+
+}
+func QueryAlgoPosition() {
+
+	client, err := GetClient()
+	if err != nil {
+		log.Fatalln("Error create new firebase app:", err)
+	}
+	ctx := context.Background()
+
+	//users := make([]map[string]interface{}, 0)
+	//var it *firestore.DocumentIterator
+	//it = h.apiContext.Store.Collection("users_meta").Limit(limit).StartAfter(cursor).OrderBy("time", firestore.Desc).Documents(context.Background())
+	usersmeta := client.Collection("users_meta")
+	firstPage, err := usersmeta.Limit(20).Documents(ctx).GetAll()
 	if err != nil {
 		log.Fatalln("Error create new firebase app:", err)
 	}
 
-	//fsclient := FireStoreClient{client}
-	var curPrice float64
-	var curTime int64
-	//var pair string
-	docPath := "asset_algo_values/gryusd/frame_01m"
-	it := client.Collection(docPath).OrderBy("UNIX_timestamp", firestore.Desc).Limit(20).Documents(context.Background())
-	for {
-		doc, err := it.Next()
-		if err == iterator.Done {
-			return
-		}
-
-		if err != nil {
-			log.Println("Error get latest price: ", err)
-			return
-		}
-
-		curTime = doc.Data()[UNIX_timestamp].(int64)
-		//pair = doc.Data()["pair"].(string)
-		curPrice = doc.Data()["price"].(float64)
-
-		priceTime := time.Unix(curTime, 0).Format("2006-01-02 15:04:05")
-		fmt.Printf("time: %d (%s) - price: %f \n", curTime, priceTime, curPrice)
-		//fmt.Println("priceTime:", priceTime)
-
-		// Add missing data for next day
-		// client.Collection("pair_frames/gryusd/frame_01d").Add(context.Background(), map[string]interface{}{
-		// 	UNIX_timestamp: curTime,
-		// 	price:          curPrice,
-		// })
-
+	for _, doc := range firstPage {
+		log.Println("doc:", doc.Data())
 	}
 
 }
 
-// func TestQueryDB(t *testing.T) {
-// 	var startTs int64 = 1556989920 - 5
+func checkExistUserMeta() {
+	client, err := GetClient()
+	if err != nil {
+		log.Fatalln("Error create new firebase app:", err)
+	}
+	ctx := context.Background()
 
-// 	ctx := context.Background()
-// 	opt := option.WithCredentialsFile("./grayll-mvp-firebase-adminsdk-jhq9x-cd9d4774ad.json")
-// 	app, err := firebase.NewApp(ctx, nil, opt)
-// 	if err != nil {
-// 		log.Fatalln("Error create new firebase app:", err)
-// 	}
+	var it *firestore.DocumentIterator
+	it = client.Collection("users_meta").Documents(ctx)
+	batch := client.Batch()
 
-// 	client, err := app.Firestore(ctx)
-// 	if err != nil {
-// 		log.Fatalln("Error create new firebase app:", err)
-// 	}
+	for {
+		doc, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
 
-// 	//fsclient := FireStoreClient{client}
-// 	var curPrice float64
-// 	var curTime int64
-// 	var pair string
-// 	it := client.Collection("medianclose").Where(UNIX_timestamp, ">=", startTs).OrderBy(UNIX_timestamp, firestore.Asc).Limit(8).Documents(context.Background())
-// 	for {
-// 		doc, err := it.Next()
-// 		if err == iterator.Done {
-// 			return
-// 		}
+		//check whether exist in users collection
+		user, err := client.Doc("users/" + doc.Ref.ID).Get(ctx)
+		if err != nil {
+			log.Println("user not exist:", doc.Ref.ID)
+			//batch.Delete(doc.Ref)
+		} else {
+			log.Println(user.Ref.ID, "email:", user.Data()["Email"], GetFloatValue(doc.Data()["GRX"]))
+			activatedAt := int64(0)
+			if val, ok := user.Data()["ActivatedAt"]; ok {
+				activatedAt = val.(int64)
+			}
+			PublicKey := ""
+			if val, ok := user.Data()["PublicKey"]; ok {
+				PublicKey = val.(string)
+			}
+			if user.Ref.ID == "3SBdaplZfV55teUdEQXEHVxd3z28OQ0AKd3OwE0DZBg" {
+				batch.Set(doc.Ref, map[string]interface{}{
+					"Name":        user.Data()["Name"].(string),
+					"LName":       user.Data()["LName"].(string),
+					"Email":       user.Data()["Email"].(string),
+					"UserId":      user.Ref.ID,
+					"CreatedAt":   user.Data()["CreatedAt"].(int64),
+					"ActivatedAt": activatedAt,
+					"PublicKey":   PublicKey,
+				}, firestore.MergeAll)
+			}
 
-// 		if err != nil {
-// 			log.Println("Error get latest price: ", err)
-// 			return
-// 		}
+		}
+	}
+	_, err = batch.Commit(ctx)
+	if err != nil {
+		log.Println(err)
+	}
 
-// 		curTime = doc.Data()[UNIX_timestamp].(int64)
-// 		pair = doc.Data()["pair"].(string)
-// 		curPrice = doc.Data()[medain_close].(float64)
-
-// 		fmt.Printf("coin: %s - time: %d - price: %f \n", pair, curTime, curPrice)
-// 		priceTime := time.Unix(curTime, 0).Format("2006-01-02 15:04:05")
-// 		fmt.Println("priceTime:", priceTime)
-
-// 	}
-
-// }
+}
