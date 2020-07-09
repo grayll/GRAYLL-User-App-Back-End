@@ -210,8 +210,6 @@ func (h UserHandler) GetFramesDataGet() gin.HandlerFunc {
 		}
 		wg.Wait()
 
-		//log.Println("res", res)
-
 		c.JSON(http.StatusOK, gin.H{
 			"status": "success", "res": res,
 		})
@@ -1212,7 +1210,6 @@ func QueryFrameDataWithTs(client *firestore.Client, limit int, coin, frame strin
 
 		price := PriceData{ts, p}
 		prices = append(prices, price)
-		//fmt.Printf("Doc Id: %s - timestamp: %d - price: %f\n", doc.Ref.ID, doc.Data()["UNIX_timestamp"], doc.Data()["price"])
 	}
 
 	return prices

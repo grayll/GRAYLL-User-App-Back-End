@@ -38,6 +38,7 @@ type Config struct {
 type ApiContext struct {
 	Store           *firestore.Client
 	Jwt             *jwttool.JwtToolkit
+	JwtAdmin        *jwttool.JwtToolkit
 	Cache           *RedisCache
 	Config          *Config
 	Asset           assets.Asset

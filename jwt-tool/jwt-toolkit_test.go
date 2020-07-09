@@ -8,7 +8,7 @@ import (
 // Gen rsa from cmd
 // openssl genrsa -out grua.key 2048
 func TestGenToken(t *testing.T) {
-	jwtToolkit, err := NewJwtFromRsaKey("grua.pem")
+	jwtToolkit, err := NewJwtFromRsaKey("../key/keyAdmin.pem")
 	if err != nil {
 		t.Fail()
 	}

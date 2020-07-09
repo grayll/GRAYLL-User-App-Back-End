@@ -29,7 +29,7 @@ const (
 
 func TestVerify(t *testing.T) {
 	//QueryAlgoPosition()
-	checkExistUserMeta()
+	//checkExistUserMeta()
 }
 func GetFloatValue(input interface{}) float64 {
 	switch input.(type) {
@@ -106,17 +106,15 @@ func checkExistUserMeta() {
 			if val, ok := user.Data()["PublicKey"]; ok {
 				PublicKey = val.(string)
 			}
-			if user.Ref.ID == "3SBdaplZfV55teUdEQXEHVxd3z28OQ0AKd3OwE0DZBg" {
-				batch.Set(doc.Ref, map[string]interface{}{
-					"Name":        user.Data()["Name"].(string),
-					"LName":       user.Data()["LName"].(string),
-					"Email":       user.Data()["Email"].(string),
-					"UserId":      user.Ref.ID,
-					"CreatedAt":   user.Data()["CreatedAt"].(int64),
-					"ActivatedAt": activatedAt,
-					"PublicKey":   PublicKey,
-				}, firestore.MergeAll)
-			}
+			batch.Set(doc.Ref, map[string]interface{}{
+				"Name":        user.Data()["Name"].(string),
+				"LName":       user.Data()["LName"].(string),
+				"Email":       user.Data()["Email"].(string),
+				"UserId":      user.Ref.ID,
+				"CreatedAt":   user.Data()["CreatedAt"].(int64),
+				"ActivatedAt": activatedAt,
+				"PublicKey":   PublicKey,
+			}, firestore.MergeAll)
 
 		}
 	}

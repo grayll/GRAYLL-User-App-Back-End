@@ -29,6 +29,10 @@ func main() {
 	if err != nil {
 		log.Fatal("Error loading rsa key")
 	}
+	jwtAdmin, err := jwttool.NewJwtFromRsaKey("key/keyAdmin.pem")
+	if err != nil {
+		log.Fatal("Error loading rsa key")
+	}
 	var store *firestore.Client
 	srv := os.Getenv("SERVER")
 	var config *api.Config
@@ -87,7 +91,7 @@ func main() {
 	client := search.NewClient("BXFJWGU0RM", "ef746e2d654d89f2a32f82fd9ffebf9e")
 	algoliaOrderIndex := client.InitIndex("orders-ua")
 
-	appContext := &api.ApiContext{Store: store, Jwt: jwt, Cache: cache, Config: config, Asset: asset, OrderIndex: algoliaOrderIndex}
+	appContext := &api.ApiContext{Store: store, Jwt: jwt, JwtAdmin: jwtAdmin, Cache: cache, Config: config, Asset: asset, OrderIndex: algoliaOrderIndex}
 	if cloudTaskClient == nil {
 		log.Println("cloudTaskClient is nil")
 	}
@@ -164,6 +168,14 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 	v1.GET("/checkpw", userHandler.CheckPw())
 	v1.GET("/verifyemail/:email", userHandler.VerifyEmail())
 
+	v1admin := router.Group("/api/admin/v1")
+	//v1admin.POST("/accounts/loginadmin", userHandler.LoginAdmin())
+	v1admin.Use(api.Authorize(appContext.Jwt))
+	{
+		v1admin.GET("/users/getusersmeta/:cursor", userHandler.GetUsersMeta())
+		v1admin.POST("/users/setstatus", userHandler.SetStatus())
+	}
+
 	// apis needs to authenticate
 	v1.Use(api.Authorize(appContext.Jwt))
 	{
@@ -210,7 +222,6 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 		v1.POST("/users/removeReferral/:referralId", userHandler.RemveReferral())
 		v1.POST("/users/removeReferer/:refererId", userHandler.RemveReferer())
 		v1.POST("/users/editreferral", userHandler.EditReferral())
-
 	}
 	return router
 }
