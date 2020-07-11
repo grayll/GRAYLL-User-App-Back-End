@@ -27,6 +27,7 @@ require (
 	//github.com/gin-contrib/cors v1.3.0
 	github.com/gin-gonic/gin v1.6.2
 	github.com/go-redis/redis v6.15.6+incompatible
+	github.com/go-redis/redis/v7 v7.2.0
 	github.com/golang/protobuf v1.3.3
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/huyntsgs/cors v1.3.2-0.20200526010755-d0b894e7ee83
@@ -46,6 +47,7 @@ require (
 	//github.com/stellar/go v0.0.0-20200428193902-20797e3e2f1a
 
 	github.com/stellar/go v0.0.0-20190920224012-d72ea298f1e9
+	github.com/ulule/limiter/v3 v3.5.0
 	go.uber.org/goleak v0.10.0 // indirect
 	golang.org/x/crypto v0.0.0-20191112222119-e1110fd1c708
 	google.golang.org/api v0.15.0

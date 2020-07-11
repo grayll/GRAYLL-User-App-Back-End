@@ -11,7 +11,7 @@ import (
 )
 
 type RedisCache struct {
-	client *redis.Client
+	Client *redis.Client
 	ttl    time.Duration
 }
 
@@ -35,12 +35,12 @@ func NewRedisCache(ttl time.Duration, config *Config) *RedisCache {
 	// redisHost := os.Getenv("REDISHOST")
 	// redisPort := os.Getenv("REDISPORT")
 	cache := new(RedisCache)
-	cache.client = redis.NewClient(&redis.Options{
+	cache.Client = redis.NewClient(&redis.Options{
 		Addr:     fmt.Sprintf("%s:%d", config.RedisHost, config.RedisPort),
 		Password: config.RedisPass,
 	})
 
-	pong, err := cache.client.Ping().Result()
+	pong, err := cache.Client.Ping().Result()
 	fmt.Println("err:", pong, err)
 	cache.ttl = ttl
 	return cache
@@ -49,74 +49,74 @@ func NewRedisCacheHost(ttl time.Duration, host, pass string, port int) *RedisCac
 	// redisHost := os.Getenv("REDISHOST")
 	// redisPort := os.Getenv("REDISPORT")
 	cache := new(RedisCache)
-	cache.client = redis.NewClient(&redis.Options{
+	cache.Client = redis.NewClient(&redis.Options{
 		Addr:     fmt.Sprintf("%s:%d", host, port),
 		Password: pass,
 	})
 
-	pong, err := cache.client.Ping().Result()
+	pong, err := cache.Client.Ping().Result()
 	fmt.Println("err:", pong, err)
 	cache.ttl = ttl
 	return cache
 }
 
 func (cache *RedisCache) SetUserSubs(uid, subs string) (bool, error) {
-	return cache.client.HSet(uid, UserSubs, subs).Result()
+	return cache.Client.HSet(uid, UserSubs, subs).Result()
 }
 func (cache *RedisCache) GetUserSubs(uid string) (string, error) {
-	return cache.client.HGet(uid, UserSubs).Result()
+	return cache.Client.HGet(uid, UserSubs).Result()
 }
 
 // Public key cache
 // {publicKey}:uid-{uid}
 func (cache *RedisCache) SetPublicKey(uid, publicKey string) (bool, error) {
-	cache.client.HSet(publicKey, UIDC, uid)
-	return cache.client.HSet(uid, PublicKey, publicKey).Result()
+	cache.Client.HSet(publicKey, UIDC, uid)
+	return cache.Client.HSet(uid, PublicKey, publicKey).Result()
 }
 func (cache *RedisCache) GetUidFromPublicKey(publicKey string) (string, error) {
-	return cache.client.HGet(publicKey, UIDC).Result()
+	return cache.Client.HGet(publicKey, UIDC).Result()
 }
 func (cache *RedisCache) GetPublicKeyFromUid(Uid string) (string, error) {
-	return cache.client.HGet(Uid, PublicKey).Result()
+	return cache.Client.HGet(Uid, PublicKey).Result()
 }
 
 // Notice cache
 func (cache *RedisCache) SetNotice(uid, cacheType string, value bool) (bool, error) {
-	return cache.client.HSet(uid+UserInfo, cacheType, value).Result()
+	return cache.Client.HSet(uid+UserInfo, cacheType, value).Result()
 }
 func (cache *RedisCache) SetNotices(uid string, pairs ...interface{}) (string, error) {
-	return cache.client.MSet(uid+UserInfo, pairs).Result()
+	return cache.Client.MSet(uid+UserInfo, pairs).Result()
 }
 func (cache *RedisCache) GetNotice(uid, cacheType string) (string, error) {
-	return cache.client.HGet(uid+UserInfo, cacheType).Result()
+	return cache.Client.HGet(uid+UserInfo, cacheType).Result()
 }
 
 func (cache *RedisCache) SetXLMPrice(price float64) (bool, error) {
-	return cache.client.HSet("prices", "xlmP", price).Result()
+	return cache.Client.HSet("prices", "xlmP", price).Result()
 }
 func (cache *RedisCache) GetXLMPrice() (string, error) {
-	return cache.client.HGet("prices", "xlmP").Result()
+	return cache.Client.HGet("prices", "xlmP").Result()
 }
 func (cache *RedisCache) GetXLMUsd() (float64, error) {
-	return cache.client.HGet("prices", "xlmP").Float64()
+	return cache.Client.HGet("prices", "xlmP").Float64()
 }
 func (cache *RedisCache) SetGRXPrice(price float64) (bool, error) {
-	return cache.client.HSet("prices", "grxP", price).Result()
+	return cache.Client.HSet("prices", "grxP", price).Result()
 }
 func (cache *RedisCache) GetGRXPrice() (string, error) {
-	return cache.client.HGet("prices", "grxP").Result()
+	return cache.Client.HGet("prices", "grxP").Result()
 }
 func (cache *RedisCache) SetGRXUsd(price float64) (bool, error) {
-	return cache.client.HSet("prices", "grxUsd", price).Result()
+	return cache.Client.HSet("prices", "grxUsd", price).Result()
 }
 func (cache *RedisCache) GetGRXUsd() (float64, error) {
-	return cache.client.HGet("prices", "grxUsd").Float64()
+	return cache.Client.HGet("prices", "grxUsd").Float64()
 }
 func (cache *RedisCache) SetFunc2LAS(las float64) (string, error) {
-	return cache.client.Set("LAS", las, 0).Result()
+	return cache.Client.Set("LAS", las, 0).Result()
 }
 func (cache *RedisCache) GetFunc2LAS() (float64, error) {
-	las, err := cache.client.Get("LAS").Float64()
+	las, err := cache.Client.Get("LAS").Float64()
 	if err != nil {
 		return 0, err
 	}
@@ -129,11 +129,11 @@ func (cache *RedisCache) UpdatePositionNumbers(uid, algorithm, action string, n 
 	key := fmt.Sprintf("_total_%s_open_positions", str)
 	var res *redis.IntCmd
 	if action == "OPEN" {
-		res = cache.client.IncrBy(uid+key, 1)
+		res = cache.Client.IncrBy(uid+key, 1)
 	} else if action == "CLOSE" && n > 0 {
-		res = cache.client.DecrBy(uid+key, n)
+		res = cache.Client.DecrBy(uid+key, n)
 	} else if n == 0 {
-		err := cache.client.Set(uid+key, 0, 0).Err()
+		err := cache.Client.Set(uid+key, 0, 0).Err()
 		return int64(0), err
 	}
 
@@ -143,15 +143,15 @@ func (cache *RedisCache) UpdatePositionOpen(uid, algorithm, grayllTxId string, c
 	cacheTxId, _ := GetCacheTxId(algorithm, grayllTxId)
 	//str := strings.ToLower(strings.ReplaceAll(algorithm, " ", ""))
 	_, hashCurrentValue := BuildHash(uid, algorithm)
-	cache.client.HSet(hashCurrentValue, cacheTxId, currentValue)
+	cache.Client.HSet(hashCurrentValue, cacheTxId, currentValue)
 	return cache.UpdatePositionNumbers(uid, algorithm, "OPEN", 1)
 }
 func (cache *RedisCache) UpdateCurrentPositionValues(uid, algorithm, grayllTxId string, roi, currentValue float64) {
 	cacheTxId, _ := GetCacheTxId(algorithm, grayllTxId)
 	hashRoi, hashCurrentValue := BuildHash(uid, algorithm)
 
-	cache.client.HSet(hashRoi, cacheTxId, roi)
-	cache.client.HSet(hashCurrentValue, cacheTxId, currentValue)
+	cache.Client.HSet(hashRoi, cacheTxId, roi)
+	cache.Client.HSet(hashCurrentValue, cacheTxId, currentValue)
 }
 
 func (cache *RedisCache) UpdatePositionClose(uid, algorithm, grayllTxId string) (int64, error) {
@@ -159,8 +159,8 @@ func (cache *RedisCache) UpdatePositionClose(uid, algorithm, grayllTxId string) 
 	str := strings.ToLower(strings.ReplaceAll(algorithm, " ", ""))
 	hashRoi := fmt.Sprintf("%s_%s_current_ROI", uid, str)
 	hashCurrentValue := fmt.Sprintf("%s_%s_current_value", uid, str)
-	cache.client.HDel(hashRoi, cacheTxId)
-	cache.client.HDel(hashCurrentValue, cacheTxId)
+	cache.Client.HDel(hashRoi, cacheTxId)
+	cache.Client.HDel(hashCurrentValue, cacheTxId)
 
 	return cache.UpdatePositionNumbers(uid, algorithm, "CLOSE", 1)
 }
@@ -170,8 +170,8 @@ func (cache *RedisCache) UpdatePositionCloseAll(uid, algorithm, grayllTxId strin
 	str := strings.ToLower(strings.ReplaceAll(algorithm, " ", ""))
 	hashRoi := fmt.Sprintf("%s_%s_current_ROI", uid, str)
 	hashCurrentValue := fmt.Sprintf("%s_%s_current_value", uid, str)
-	cache.client.HDel(hashRoi, cacheTxId)
-	cache.client.HDel(hashCurrentValue, cacheTxId)
+	cache.Client.HDel(hashRoi, cacheTxId)
+	cache.Client.HDel(hashCurrentValue, cacheTxId)
 
 	//return cache.UpdatePositionNumbers(uid, algorithm, "CLOSE", 1)
 }
@@ -180,13 +180,13 @@ func (cache *RedisCache) GetCurrentValues(uid, algorithm string, isGetRoi bool) 
 
 	hashRoi, hashCurrentValue := BuildHash(uid, algorithm)
 
-	currentValues := cache.client.HGetAll(hashCurrentValue)
+	currentValues := cache.Client.HGetAll(hashCurrentValue)
 
 	totalCurrentRoi := float64(0)
 	totalCurrentValue := float64(0)
 
 	if isGetRoi {
-		rois := cache.client.HGetAll(hashRoi)
+		rois := cache.Client.HGetAll(hashRoi)
 		_rois, err := rois.Result()
 		if err != nil {
 			log.Println("[ERROR] Can not get rois for key:", hashRoi)
@@ -238,11 +238,11 @@ func GetCacheTxId(algoType, grayll_tx_id string) (string, string) {
 }
 
 func (cache *RedisCache) SetRefererUid(uid, refererUid string) {
-	cache.client.HSet("referer", uid, refererUid)
+	cache.Client.HSet("referer", uid, refererUid)
 }
 func (cache *RedisCache) GetRefererUid(uid string) string {
-	return cache.client.HGet("referer", uid).String()
+	return cache.Client.HGet("referer", uid).String()
 }
 func (cache *RedisCache) DelRefererUid(uid string) {
-	cache.client.HDel("referer", uid)
+	cache.Client.HDel("referer", uid)
 }

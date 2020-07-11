@@ -31,15 +31,21 @@ import (
 func (h UserHandler) SetStatus() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input struct {
-			UserId       string `json:"userId"`
-			Pasword      string `json:"password"`
-			StatusId     int    `json:"statusId"`
-			LoginStatus  bool   `json:"loginStatus"`
-			SignupStatus bool   `json:"signupStatus"`
-			Gry1Status   bool   `json:"gry1Status"`
-			Gry2Status   bool   `json:"gry2Status"`
-			Gry3Status   bool   `json:"gry3Status"`
-			GrzStatus    bool   `json:"grzStatus"`
+			UserId            string `json:"userId"`
+			Pasword           string `json:"password"`
+			StatusId          int    `json:"statusId"`
+			LoginStatus       bool   `json:"loginStatus"`
+			SignupStatus      bool   `json:"signupStatus"`
+			Gry1Status        bool   `json:"gry1Status"`
+			Gry2Status        bool   `json:"gry2Status"`
+			Gry3Status        bool   `json:"gry3Status"`
+			GrzStatus         bool   `json:"grzStatus"`
+			Gry1NewPosition   bool   `json:"gry1NewPosition"`
+			Gry2NewPosition   bool   `json:"gry2NewPosition"`
+			Gry3NewPosition   bool   `json:"gry3NewPosition"`
+			GrzNewPosition    bool   `json:"grzNewPosition"`
+			SystemStatus      bool   `json:"systemStatus"`
+			SystemNewPosition bool   `json:"systemNewPosition"`
 		}
 
 		err := c.BindJSON(&input)
@@ -51,6 +57,8 @@ func (h UserHandler) SetStatus() gin.HandlerFunc {
 		ctx := context.Background()
 		fieldName := ""
 		value := true
+		fieldName1 := ""
+		value1 := true
 		if input.UserId == "" {
 			switch input.StatusId {
 			case 1:
@@ -62,20 +70,39 @@ func (h UserHandler) SetStatus() gin.HandlerFunc {
 			case 3:
 				fieldName = "gry1Status"
 				value = input.Gry1Status
+				fieldName1 = "gry1NewPosition"
+				value1 = input.Gry1NewPosition
 			case 4:
 				fieldName = "gry2Status"
 				value = input.Gry2Status
+				fieldName1 = "gry2NewPosition"
+				value1 = input.Gry2NewPosition
 			case 5:
 				fieldName = "gry3Status"
 				value = input.Gry3Status
+				fieldName1 = "gry3NewPosition"
+				value1 = input.Gry3NewPosition
 			case 6:
 				fieldName = "grzStatus"
 				value = input.GrzStatus
-
+				fieldName1 = "grzNewPosition"
+				value1 = input.GrzNewPosition
+			case 7:
+				fieldName = "systemStatus"
+				value = input.SystemStatus
+				fieldName1 = "systemNewPosition"
+				value1 = input.SystemNewPosition
 			}
-			_, err = h.apiContext.Store.Doc("admin/8efngc9fgm12nbcxeq").Set(ctx, map[string]interface{}{
+			data := map[string]interface{}{
 				fieldName: value,
-			}, firestore.MergeAll)
+			}
+			if fieldName1 != "" {
+				data = map[string]interface{}{
+					fieldName:  value,
+					fieldName1: value1,
+				}
+			}
+			_, err = h.apiContext.Store.Doc("admin/8efngc9fgm12nbcxeq").Set(ctx, data, firestore.MergeAll)
 			if err != nil {
 				GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
 				return
@@ -83,30 +110,45 @@ func (h UserHandler) SetStatus() gin.HandlerFunc {
 		} else {
 			switch input.StatusId {
 			case 1:
-
 				fieldName = "loginStatus"
 				value = input.LoginStatus
 			case 2:
-
 				fieldName = "signupStatus"
 				value = input.SignupStatus
 			case 3:
-
 				fieldName = "gry1Status"
 				value = input.Gry1Status
+				fieldName1 = "gry1NewPosition"
+				value1 = input.Gry1NewPosition
 			case 4:
-
 				fieldName = "gry2Status"
 				value = input.Gry2Status
+				fieldName1 = "gry2NewPosition"
+				value1 = input.Gry2NewPosition
 			case 5:
-
 				fieldName = "gry3Status"
 				value = input.Gry3Status
+				fieldName1 = "gry3NewPosition"
+				value1 = input.Gry3NewPosition
 			case 6:
-
 				fieldName = "grzStatus"
 				value = input.GrzStatus
-
+				fieldName1 = "grzNewPosition"
+				value1 = input.GrzNewPosition
+			case 7:
+				fieldName = "systemStatus"
+				value = input.SystemStatus
+				fieldName1 = "systemNewPosition"
+				value1 = input.SystemNewPosition
+			}
+			data := map[string]interface{}{
+				fieldName: value,
+			}
+			if fieldName1 != "" {
+				data = map[string]interface{}{
+					fieldName:  value,
+					fieldName1: value1,
+				}
 			}
 			_, err := h.apiContext.Store.Doc("users_meta/" + input.UserId).Get(ctx)
 			if err != nil {
@@ -114,9 +156,7 @@ func (h UserHandler) SetStatus() gin.HandlerFunc {
 				return
 			}
 
-			_, err = h.apiContext.Store.Doc("users_meta/"+input.UserId).Set(ctx, map[string]interface{}{
-				fieldName: value,
-			}, firestore.MergeAll)
+			_, err = h.apiContext.Store.Doc("users_meta/"+input.UserId).Set(ctx, data, firestore.MergeAll)
 			if err != nil {
 				GinRespond(c, http.StatusOK, INTERNAL_ERROR, "")
 				return
@@ -365,7 +405,7 @@ func (h UserHandler) LoginAdmin() gin.HandlerFunc {
 
 		go func() {
 			// Set local key in redis, getUserInfo will get from redis cache
-			h.apiContext.Cache.client.Set(hashToken, localKey, time.Hour*24)
+			h.apiContext.Cache.Client.Set(hashToken, localKey, time.Hour*24)
 			h.apiContext.Store.Doc("users/"+uid).Set(ctx, map[string]interface{}{
 				"LoginTime": time.Now().Unix(),
 			}, firestore.MergeAll)

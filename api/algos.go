@@ -1001,7 +1001,7 @@ func (h UserHandler) GetDashBoardInfo() gin.HandlerFunc {
 			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Can not parse json input")
 			return
 		}
-		fmt.Printf("got input data: %v\n", input)
+		//fmt.Printf("got input data: %v\n", input)
 		coins := strings.Split(input.Coins, ",")
 		wg := new(sync.WaitGroup)
 		wg.Add(3)
@@ -1186,8 +1186,6 @@ func QueryFrameDataWithTs(client *firestore.Client, limit int, coin, frame strin
 	// 	ts = newStartTs
 	// }
 	it := client.Collection(docPath).Where(UNIX_timestamp, ">=", ts).OrderBy(UNIX_timestamp, firestore.Asc).Documents(ctx)
-	log.Println("docPath:", docPath)
-	//it := client.Collection(docPath).OrderBy(UNIX_timestamp, firestore.Desc).Limit(limit).Documents(ctx)
 
 	for {
 		doc, err := it.Next()
@@ -1221,7 +1219,7 @@ func QueryFrameDataWithTs(client *firestore.Client, limit int, coin, frame strin
 func QueryFrameData(client *firestore.Client, limit int, coin, frame string) []PriceData {
 	prices := make([]PriceData, 0)
 	docPath := fmt.Sprintf("pair_frames/%s/%s", coin, frame)
-	fmt.Printf("QueryFrameData - coin %s, frame %s docpath %s\n", coin, frame, docPath)
+	//fmt.Printf("QueryFrameData - coin %s, frame %s docpath %s\n", coin, frame, docPath)
 	ctx := context.Background()
 	it := client.Collection(docPath).OrderBy(UNIX_timestamp, firestore.Desc).Limit(limit).Documents(ctx)
 

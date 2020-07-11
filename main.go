@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+
 	"log"
 	"os"
 	"strconv"
@@ -22,6 +24,11 @@ import (
 	stellar "github.com/huyntsgs/stellar-service"
 	"github.com/huyntsgs/stellar-service/assets"
 	"google.golang.org/api/option"
+
+	libredis "github.com/go-redis/redis/v7"
+	limiter "github.com/ulule/limiter/v3"
+	mgin "github.com/ulule/limiter/v3/drivers/middleware/gin"
+	sredis "github.com/ulule/limiter/v3/drivers/store/redis"
 )
 
 func main() {
@@ -105,24 +112,37 @@ func main() {
 	router.Run(":" + port)
 }
 
-// func CheckAllowedCorApi(reqURL string) bool {
-// 	// if strings.Contains(reqURL, "/users/Renew") || strings.Contains(reqURL, "/users/ReportData") || strings.Contains(reqURL, "/warmup") {
-// 	// 	return true
-// 	// }
-// 	log.Println("reqURL:", reqURL)
-// 	if strings.Contains(reqURL, "/users/ReportData") || strings.Contains(reqURL, "/warmup") {
-// 		return true
-// 	}
-// 	return false
-// }
-
 func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 	//gin.SetMode(gin.ReleaseMode)
+	rateFormat := "20-M"
+	rateFormatEnv := os.Getenv("RATE_LIMIT")
+	if rateFormatEnv != "" {
+		rateFormat = rateFormatEnv
+	}
+	rate, err := limiter.NewRateFromFormatted(rateFormat)
+	if err != nil {
+		log.Fatal(err)
+	}
+	client := libredis.NewClient(&libredis.Options{
+		Addr:     fmt.Sprintf("%s:%d", appContext.Config.RedisHost, appContext.Config.RedisPort),
+		Password: appContext.Config.RedisPass})
+
+	// Create a store with the redis client.
+	store, err := sredis.NewStoreWithOptions(client, limiter.StoreOptions{
+		Prefix:   "app_limit",
+		MaxRetry: 3,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Create a new middleware with the limiter instance.
+	middleware := mgin.NewMiddleware(limiter.New(store, rate))
+
 	router := gin.New()
-	router.Use(gin.Logger())
+	//router.Use(gin.Logger())
 	if srv == "prod" || srv == "dev" {
 		router.Use(cors.New(cors.Config{
-			AllowOrigins:     []string{"https://app.grayll.io", "http://127.0.0.1:4200"},
+			AllowOrigins:     []string{"https://app.grayll.io", "https://admin.grayll.io", "http://127.0.0.1:4200"},
 			AllowMethods:     []string{"POST, GET, OPTIONS, PUT, DELETE"},
 			AllowHeaders:     []string{"Authorization", "Origin", "Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token"},
 			ExposeHeaders:    []string{"Content-Length"},
@@ -144,6 +164,20 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 	}
 
 	router.Use(gin.Recovery())
+	router.Use(middleware)
+
+	router.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+		return fmt.Sprintf("%s | %s | %s | %d | %s  | %s | %s | %s\n",
+			param.TimeStamp.Format(time.RFC3339),
+			param.Keys["Uid"],
+			param.ClientIP,
+			param.StatusCode,
+			param.Latency,
+			param.Method,
+			param.Path,
+			param.ErrorMessage,
+		)
+	}))
 
 	userHandler := api.NewUserHandler(appContext)
 	phones := api.NewPhoneHandler(appContext)

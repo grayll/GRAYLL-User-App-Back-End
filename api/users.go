@@ -267,7 +267,7 @@ func (h UserHandler) Login() gin.HandlerFunc {
 
 		go func() {
 			// Set local key in redis, getUserInfo will get from redis cache
-			h.apiContext.Cache.client.Set(hashToken, localKey, time.Hour*24)
+			h.apiContext.Cache.Client.Set(hashToken, localKey, time.Hour*24)
 			h.apiContext.Store.Doc("users/"+uid).Set(ctx, map[string]interface{}{
 				"LoginTime": time.Now().Unix(),
 			}, firestore.MergeAll)
@@ -1841,7 +1841,7 @@ func (h UserHandler) SaveUserMetaData() gin.HandlerFunc {
 			GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
 			return
 		}
-		h.apiContext.Cache.client.MSet(uid+"_total_grz_open_positions", input.TotalGRZOpenPositions, uid+"_total_gry1_open_positions", input.TotalGRY1OpenPositions,
+		h.apiContext.Cache.Client.MSet(uid+"_total_grz_open_positions", input.TotalGRZOpenPositions, uid+"_total_gry1_open_positions", input.TotalGRY1OpenPositions,
 			uid+"_total_gry2_open_positions", input.TotalGRY2OpenPositions, uid+"_total_gry3_open_positions", input.TotalGRY3OpenPositions)
 
 		GinRespond(c, http.StatusOK, SUCCESS, "")
@@ -1998,7 +1998,7 @@ func (h UserHandler) GetUserInfo() gin.HandlerFunc {
 		}
 		token := c.GetString("Token")
 		hashToken := Hash(token)
-		tokenCache := h.apiContext.Cache.client.Get(hashToken)
+		tokenCache := h.apiContext.Cache.Client.Get(hashToken)
 
 		localKey, err := tokenCache.Result()
 		if err != nil {
