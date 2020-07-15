@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"strings"
 
 	"encoding/json"
 	"strconv"
@@ -173,7 +174,7 @@ func (h UserHandler) GetUsersMeta() gin.HandlerFunc {
 			GinRespond(c, http.StatusOK, INVALID_PARAMS, err.Error())
 			return
 		}
-		limit := 25
+		limit := 250
 		users := make([]map[string]interface{}, 0)
 		ctx := context.Background()
 		usersColl := h.apiContext.Store.Collection("users_meta")
@@ -186,7 +187,9 @@ func (h UserHandler) GetUsersMeta() gin.HandlerFunc {
 			}
 
 			for _, doc := range userDocs {
-
+				if strings.Contains(doc.Data()["PublicKey"].(string), "GAUBL3") {
+					log.Println("uid:", doc.Data()["UserId"].(string))
+				}
 				users = append(users, doc.Data())
 			}
 		} else {

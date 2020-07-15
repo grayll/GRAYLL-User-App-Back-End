@@ -241,6 +241,7 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 		v1.POST("/users/GetDashBoardInfo", userHandler.GetDashBoardInfo())
 		v1.GET("/users/GetDashBoardInfoGet/:coins", userHandler.GetDashBoardInfoGet())
 		v1.POST("/users/Renew", userHandler.Renew())
+		v1.GET("/users/getalgoroi", userHandler.GetAlgoRoi())
 
 		v1.POST("/users/saveReportSetting", userHandler.SaveReportSetting())
 

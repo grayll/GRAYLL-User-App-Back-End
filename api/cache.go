@@ -246,3 +246,74 @@ func (cache *RedisCache) GetRefererUid(uid string) string {
 func (cache *RedisCache) DelRefererUid(uid string) {
 	cache.Client.HDel("referer", uid)
 }
+
+func (cache *RedisCache) UpdateRoi(graylltx, algo string, value float64, roiType string) {
+	roiKey := ""
+	switch roiType {
+	case "24h":
+		roiKey = algo + "_roi24h"
+		cache.Client.ZAdd(roiKey, redis.Z{value, graylltx})
+	case "7d":
+		roiKey = algo + "_roi7d"
+		cache.Client.ZAdd(roiKey, redis.Z{value, graylltx})
+	case "total":
+		roiKey = algo + "_roitotal"
+		cache.Client.ZAdd(roiKey, redis.Z{value, graylltx})
+	case "all":
+		roiKey = algo + "_roi24h"
+		cache.Client.ZAdd(roiKey, redis.Z{value, graylltx})
+		roiKey = algo + "_roi7d"
+		cache.Client.ZAdd(roiKey, redis.Z{value, graylltx})
+		roiKey = algo + "_roitotal"
+		cache.Client.ZAdd(roiKey, redis.Z{value, graylltx})
+	}
+
+}
+func (cache *RedisCache) RemoveRoi(graylltx, algo string, value float64, duration int64) {
+	roiKey := algo + "_roi24h"
+	cache.Client.ZRem(roiKey, graylltx)
+	roiKey = algo + "_roi7d"
+	cache.Client.ZRem(roiKey, graylltx)
+	roiKey = algo + "_roitotal"
+	cache.Client.ZRem(roiKey, graylltx)
+}
+
+func (cache *RedisCache) GetRois(algo string) []float64 {
+	res := make([]float64, 0)
+	val := float64(0)
+	var err error
+	roiType := algo + "_roi24h"
+	log.Println("roiType:", roiType)
+	roi24h, err := cache.Client.ZRevRangeWithScores(roiType, 0, 0).Result()
+	if err != nil || len(roi24h) == 0 {
+		log.Println("error ZRangeByScore roi24h", err, roi24h)
+		val = 0
+	} else {
+		log.Println("ZRangeByScore roi24h", roi24h)
+		val = roi24h[0].Score
+	}
+	res = append(res, val)
+
+	roiType = algo + "_roi7d"
+	roi7d, err := cache.Client.ZRevRangeWithScores(roiType, 0, 0).Result()
+	if err != nil || len(roi7d) == 0 {
+		log.Println("error ZRangeByScore roi7d", err)
+		val = 0
+	} else {
+		val = roi7d[0].Score
+	}
+	res = append(res, val)
+
+	roiType = algo + "_roitotal"
+	roiTotal, err := cache.Client.ZRevRangeWithScores(roiType, 0, 0).Result()
+	if err != nil || len(roiTotal) == 0 {
+		log.Println("error ZRangeByScore roiTotal", err)
+		val = 0
+	} else {
+		val = roiTotal[0].Score
+	}
+	res = append(res, val)
+
+	return res
+
+}

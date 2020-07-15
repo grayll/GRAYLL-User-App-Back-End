@@ -705,7 +705,9 @@ func (h UserHandler) ReportData() gin.HandlerFunc {
 		}
 		docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
 		_, err = docRef.Set(ctx, notice)
-		//log.Println("content:", content)
+		_, err = h.apiContext.Store.Doc("users_meta/"+uid).Update(ctx, []firestore.Update{
+			{Path: "UrGeneral", Value: firestore.Increment(1)},
+		})
 
 		current, err := TimeIn(time.Now(), currReportSetting.TimeZone)
 		scheduleTime := NewDate(current, currReportSetting.TimeHour, currReportSetting.TimeMinute, currReportSetting.TimeZone)
@@ -1051,6 +1053,43 @@ func (h UserHandler) GetDashBoardInfoGet() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "success", "db": db,
 		})
+	}
+}
+func (h UserHandler) GetAlgoRoi() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		gry1s := make([]float64, 0)
+		gry2s := make([]float64, 0)
+		gry3s := make([]float64, 0)
+		grzs := make([]float64, 0)
+		wg := new(sync.WaitGroup)
+		wg.Add(4)
+		go func() {
+			gry1s = h.apiContext.Cache.GetRois("gry1")
+			wg.Done()
+		}()
+		elapse := time.Since(start).Seconds()
+		go func() {
+			gry2s = h.apiContext.Cache.GetRois("gry2")
+			wg.Done()
+		}()
+		go func() {
+			gry3s = h.apiContext.Cache.GetRois("gry3")
+			wg.Done()
+		}()
+		go func() {
+			grzs = h.apiContext.Cache.GetRois("grz")
+			wg.Done()
+		}()
+		wg.Wait()
+		log.Println("gry1", gry1s, elapse)
+		log.Println("gry2s", gry2s)
+		log.Println("gry3s", gry3s)
+		log.Println("grzs", grzs)
+		c.JSON(http.StatusOK, gin.H{
+			"errCode": SUCCESS, "gry1s": gry1s, "gry2s": gry2s, "gry3s": gry3s, "grzs": grzs,
+		})
+
 	}
 }
 func GetPairDashBoardData(client *firestore.Client, coin, frame string) map[string]interface{} {
