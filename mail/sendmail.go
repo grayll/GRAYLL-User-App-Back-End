@@ -16,6 +16,8 @@ type Email struct {
 	email  hermes.Email
 }
 
+var SendGridAPIKey string
+
 func NewEmailSerivce() *Email {
 	h := hermes.Hermes{
 		// Optional Theme

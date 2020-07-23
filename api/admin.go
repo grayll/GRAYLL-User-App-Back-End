@@ -2,7 +2,7 @@ package api
 
 import (
 	"context"
-	"strings"
+	//"strings"
 
 	"encoding/json"
 	"strconv"
@@ -103,6 +103,7 @@ func (h UserHandler) SetStatus() gin.HandlerFunc {
 					fieldName1: value1,
 				}
 			}
+			log.Println("data", data)
 			_, err = h.apiContext.Store.Doc("admin/8efngc9fgm12nbcxeq").Set(ctx, data, firestore.MergeAll)
 			if err != nil {
 				GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
@@ -187,9 +188,9 @@ func (h UserHandler) GetUsersMeta() gin.HandlerFunc {
 			}
 
 			for _, doc := range userDocs {
-				if strings.Contains(doc.Data()["PublicKey"].(string), "GAUBL3") {
-					log.Println("uid:", doc.Data()["UserId"].(string))
-				}
+				// if strings.Contains(doc.Data()["PublicKey"].(string), "GAUBL3") {
+				// 	log.Println("uid:", doc.Data()["UserId"].(string))
+				// }
 				users = append(users, doc.Data())
 			}
 		} else {
@@ -222,7 +223,7 @@ func (h UserHandler) LoginAdmin() gin.HandlerFunc {
 			return
 		}
 
-		if user.Email != "huynt580@gmail.com" {
+		if user.Email != "huynt580@gmail.com" || user.Email != "grayll@grayll.io" {
 			GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Invalid user name or password")
 			return
 		}

@@ -343,26 +343,26 @@ func (h UserHandler) XlmLoanReminder() gin.HandlerFunc {
 
 				//ctx := context.Background()
 				log.Println("Start push notice")
-				go func() {
-					subs, err := h.apiContext.Cache.GetUserSubs(uid)
-					if err == nil && subs != "" {
-						//log.Println("subs: ", subs)
-						noticeData := map[string]interface{}{
-							"notification": notice,
-						}
-						webpushSub := webpush.Subscription{}
-						err = json.Unmarshal([]byte(subs), &webpushSub)
-						if err != nil {
-							log.Println("Unmarshal subscription from redis error: ", err)
-							return
-						}
-						err = PushNotice(noticeData, &webpushSub)
-						if err != nil {
-							log.Println("PushNotice error: ", err)
-							//return
-						}
-					}
-				}()
+				// go func() {
+				// 	subs, err := h.apiContext.Cache.GetUserSubs(uid)
+				// 	if err == nil && subs != "" {
+				// 		//log.Println("subs: ", subs)
+				// 		noticeData := map[string]interface{}{
+				// 			"notification": notice,
+				// 		}
+				// 		webpushSub := webpush.Subscription{}
+				// 		err = json.Unmarshal([]byte(subs), &webpushSub)
+				// 		if err != nil {
+				// 			log.Println("Unmarshal subscription from redis error: ", err)
+				// 			return
+				// 		}
+				// 		err = PushNotice(noticeData, &webpushSub)
+				// 		if err != nil {
+				// 			log.Println("PushNotice error: ", err)
+				// 			//return
+				// 		}
+				// 	}
+				// }()
 
 				// Save to firestore
 				ctx := context.Background()
@@ -410,6 +410,14 @@ func (h UserHandler) XlmLoanReminder() gin.HandlerFunc {
 					if err != nil {
 						log.Println("Can not delete account:", err)
 					}
+				}
+
+				// Remove form xlm loan sendgrid list
+				if receiptId, ok := userInfo["SendGridId"]; ok {
+					mail.RemoveRecipientFromList(receiptId.(string), 10196670)
+					mail.RemoveRecipientFromList(receiptId.(string), 10761027)
+					// Add to account closure list
+					mail.AddRecipienttoList(receiptId.(string), 12586061)
 				}
 
 				// app notice

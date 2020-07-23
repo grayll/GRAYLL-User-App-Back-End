@@ -473,14 +473,15 @@ func (h UserHandler) Register() gin.HandlerFunc {
 		uid := userDoc.ID // Check referer user
 		refererUid := ""
 		referralUGeneral := 0
+		referralSendGridId := ""
 		if input.Referer != "" {
-			log.Println("Start referral setup")
+
 			uidb, err := base64.StdEncoding.DecodeString(input.Referer)
 			if err != nil {
 				log.Println("[ERROR] - Register - can not decode referer:", err)
 			} else {
 				refererUid = string(uidb)
-				log.Println("referer uid:", refererUid)
+
 				referer, err := h.apiContext.Store.Doc("users/" + refererUid).Get(ctx)
 				if err != nil {
 					log.Println("[ERROR] - get referer uid:", err)
@@ -529,8 +530,15 @@ func (h UserHandler) Register() gin.HandlerFunc {
 					referralDoc := h.apiContext.Store.Doc("referrals/" + refererUid + "/referral/" + uid)
 					batch.Set(referralDoc, referralData)
 
-					invitedDoc := h.apiContext.Store.Doc("referrals/" + refererUid + "/invite/" + input.DocId)
-					batch.Delete(invitedDoc)
+					// Get invited sendgrid id
+					invitedDoc, err := h.apiContext.Store.Doc("referrals/" + refererUid + "/invite/" + input.DocId).Get(ctx)
+					if err == nil {
+						if val, ok := invitedDoc.Data()["sendGridId"]; ok {
+							referralSendGridId = val.(string)
+						}
+
+						batch.Delete(invitedDoc.Ref)
+					}
 
 					// Check whether metrics data exist
 					metricDoc, err := h.apiContext.Store.Doc("referrals/" + refererUid + "/metrics/referral").Get(ctx)
@@ -610,10 +618,6 @@ func (h UserHandler) Register() gin.HandlerFunc {
 					}
 					docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
 					batch.Set(docRef, notice)
-					// userMeta = h.apiContext.Store.Doc("users_meta/" + uid)
-					// batch.Set(userMeta, map[string]interface{}{
-					// 	"UrGeneral": 1,
-					// }, firestore.MergeAll)
 
 					referralUGeneral = 1
 				}
@@ -654,8 +658,20 @@ func (h UserHandler) Register() gin.HandlerFunc {
 		}
 
 		// Save registration infor to SendGrid db
+		//12592774 : confirmed invite referral
+		//12592770: pending invite
 		go func() {
-			mail.SaveRegistrationInfo(input.Name, input.LName, input.Email, input.CreatedAt)
+			if referralSendGridId != "" {
+				mail.AddRecipienttoList(referralSendGridId, 12592774)
+				mail.RemoveRecipientFromList(referralSendGridId, 12592770)
+			} else {
+				receiptId, err := mail.SaveRegistrationInfo(input.Name, input.LName, input.Email, input.CreatedAt, 0)
+				if receiptId != "" && err != nil {
+					h.apiContext.Store.Doc("users/"+uid).Set(ctx, map[string]interface{}{
+						"SendGridId": receiptId,
+					}, firestore.MergeAll)
+				}
+			}
 		}()
 
 		c.JSON(http.StatusOK, gin.H{
@@ -2547,6 +2563,12 @@ func (h UserHandler) Invite() gin.HandlerFunc {
 		uid := c.GetString(UID)
 		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
 
+		// save to pending invite sendgrid list
+		currentTime := time.Now().Unix()
+		sendgridId, err := mail.SaveRegistrationInfo(input.Name, input.LName, input.Email, currentTime, 12592770)
+
+		log.Println("sendgridId:", sendgridId)
+
 		doc := h.apiContext.Store.Collection("referrals/" + uid + "/invite").NewDoc()
 		invited := map[string]interface{}{
 			"id":             doc.ID,
@@ -2557,8 +2579,9 @@ func (h UserHandler) Invite() gin.HandlerFunc {
 			"phone":          input.Phone,
 			"remindTime":     0,
 			"status":         "pending",
-			"lastSentRemind": time.Now().Unix(),
-			"sentRemind":     time.Now().Unix(),
+			"lastSentRemind": currentTime,
+			"sentRemind":     currentTime,
+			"sendGridId":     sendgridId,
 		}
 
 		title, url, contents := GenInvite(uid, userInfo["Name"].(string), userInfo["LName"].(string), doc.ID)
@@ -2976,7 +2999,14 @@ func (h UserHandler) DelInvite() gin.HandlerFunc {
 
 		uid := c.GetString(UID)
 
-		_, err := h.apiContext.Store.Doc("referrals/" + uid + "/invite/" + docId).Delete(ctx)
+		pendingIniteDoc, err := h.apiContext.Store.Doc("referrals/" + uid + "/invite/" + docId).Get(ctx)
+		if err == nil {
+			if sendgridId, ok := pendingIniteDoc.Data()["sendGridId"]; ok {
+				mail.RemoveRecipientFromList(sendgridId.(string), 12592770)
+			}
+		}
+
+		_, err = h.apiContext.Store.Doc("referrals/" + uid + "/invite/" + docId).Delete(ctx)
 		if err != nil {
 			log.Println("[ERROR]- ReSendInvite - can not find invite document:", err, uid)
 			GinRespond(c, http.StatusOK, INVALID_PARAMS, "docId not exist")
