@@ -31,27 +31,31 @@ const (
 	// MailAlgo    = "mail-algo"
 )
 
-func NewRedisCache(ttl time.Duration, config *Config) *RedisCache {
+func NewRedisCache(ttl time.Duration, config *Config) (*RedisCache, error) {
 	// redisHost := os.Getenv("REDISHOST")
 	// redisPort := os.Getenv("REDISPORT")
 	cache := new(RedisCache)
 	cache.Client = redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%d", config.RedisHost, config.RedisPort),
-		Password: config.RedisPass,
+		Addr:         fmt.Sprintf("%s:%d", config.RedisHost, config.RedisPort),
+		Password:     config.RedisPass,
+		ReadTimeout:  time.Minute,
+		MinIdleConns: 1,
 	})
 
 	pong, err := cache.Client.Ping().Result()
-	fmt.Println("err:", pong, err)
+	fmt.Println("result:", pong, err)
 	cache.ttl = ttl
-	return cache
+	return cache, err
 }
 func NewRedisCacheHost(ttl time.Duration, host, pass string, port int) *RedisCache {
 	// redisHost := os.Getenv("REDISHOST")
 	// redisPort := os.Getenv("REDISPORT")
 	cache := new(RedisCache)
 	cache.Client = redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%d", host, port),
-		Password: pass,
+		Addr:         fmt.Sprintf("%s:%d", host, port),
+		Password:     pass,
+		ReadTimeout:  time.Minute,
+		MinIdleConns: 1,
 	})
 
 	pong, err := cache.Client.Ping().Result()
@@ -283,13 +287,13 @@ func (cache *RedisCache) GetRois(algo string) []float64 {
 	val := float64(0)
 	var err error
 	roiType := algo + "_roi24h"
-	log.Println("roiType:", roiType)
+	//log.Println("roiType:", roiType)
 	roi24h, err := cache.Client.ZRevRangeWithScores(roiType, 0, 0).Result()
 	if err != nil || len(roi24h) == 0 {
-		log.Println("error ZRangeByScore roi24h", err, roi24h)
+		//log.Println("error ZRangeByScore roi24h", err, roi24h)
 		val = 0
 	} else {
-		log.Println("ZRangeByScore roi24h", roi24h)
+		//log.Println("ZRangeByScore roi24h", roi24h)
 		val = roi24h[0].Score
 	}
 	res = append(res, val)
@@ -297,7 +301,7 @@ func (cache *RedisCache) GetRois(algo string) []float64 {
 	roiType = algo + "_roi7d"
 	roi7d, err := cache.Client.ZRevRangeWithScores(roiType, 0, 0).Result()
 	if err != nil || len(roi7d) == 0 {
-		log.Println("error ZRangeByScore roi7d", err)
+		//log.Println("error ZRangeByScore roi7d", err)
 		val = 0
 	} else {
 		val = roi7d[0].Score

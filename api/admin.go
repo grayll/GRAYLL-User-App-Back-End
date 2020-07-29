@@ -181,7 +181,7 @@ func (h UserHandler) GetUsersMeta() gin.HandlerFunc {
 		usersColl := h.apiContext.Store.Collection("users_meta")
 
 		if cursor == 0 {
-			userDocs, err := usersColl.OrderBy("CreatedAt", firestore.Asc).Limit(limit).Documents(ctx).GetAll()
+			userDocs, err := usersColl.OrderBy("CreatedAt", firestore.Desc).Limit(limit).Documents(ctx).GetAll()
 			if err != nil {
 				GinRespond(c, http.StatusOK, INTERNAL_ERROR, "")
 				return
@@ -194,7 +194,7 @@ func (h UserHandler) GetUsersMeta() gin.HandlerFunc {
 				users = append(users, doc.Data())
 			}
 		} else {
-			userDocs, err := usersColl.OrderBy("CreatedAt", firestore.Asc).StartAfter(cursor).Limit(limit).Documents(ctx).GetAll()
+			userDocs, err := usersColl.OrderBy("CreatedAt", firestore.Desc).StartAfter(cursor).Limit(limit).Documents(ctx).GetAll()
 			if err != nil {
 				GinRespond(c, http.StatusOK, INTERNAL_ERROR, "")
 				return
@@ -223,7 +223,7 @@ func (h UserHandler) LoginAdmin() gin.HandlerFunc {
 			return
 		}
 
-		if user.Email != "huynt580@gmail.com" || user.Email != "grayll@grayll.io" {
+		if user.Email != "huykbc@gmail.com" && user.Email != "grayll@grayll.io" {
 			GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Invalid user name or password")
 			return
 		}

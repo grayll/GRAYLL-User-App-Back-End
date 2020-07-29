@@ -1065,7 +1065,7 @@ func (h UserHandler) GetDashBoardInfoGet() gin.HandlerFunc {
 }
 func (h UserHandler) GetAlgoRoi() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		start := time.Now()
+		//start := time.Now()
 		gry1s := make([]float64, 0)
 		gry2s := make([]float64, 0)
 		gry3s := make([]float64, 0)
@@ -1076,7 +1076,7 @@ func (h UserHandler) GetAlgoRoi() gin.HandlerFunc {
 			gry1s = h.apiContext.Cache.GetRois("gry1")
 			wg.Done()
 		}()
-		elapse := time.Since(start).Seconds()
+		//elapse := time.Since(start).Seconds()
 		go func() {
 			gry2s = h.apiContext.Cache.GetRois("gry2")
 			wg.Done()
@@ -1090,10 +1090,10 @@ func (h UserHandler) GetAlgoRoi() gin.HandlerFunc {
 			wg.Done()
 		}()
 		wg.Wait()
-		log.Println("gry1", gry1s, elapse)
-		log.Println("gry2s", gry2s)
-		log.Println("gry3s", gry3s)
-		log.Println("grzs", grzs)
+		// log.Println("gry1", gry1s, elapse)
+		// log.Println("gry2s", gry2s)
+		// log.Println("gry3s", gry3s)
+		// log.Println("grzs", grzs)
 		c.JSON(http.StatusOK, gin.H{
 			"errCode": SUCCESS, "gry1s": gry1s, "gry2s": gry2s, "gry3s": gry3s, "grzs": grzs,
 		})

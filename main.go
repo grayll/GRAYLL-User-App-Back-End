@@ -93,8 +93,25 @@ func main() {
 	}
 
 	stellar.SetupParam(float64(1000), config.IsMainNet, config.HorizonUrl)
+
+	// connect redis
 	ttl, _ := time.ParseDuration("12h")
-	cache := api.NewRedisCache(ttl, config)
+	cache, err := api.NewRedisCache(ttl, config)
+	cnt := 0
+	if err != nil {
+		for {
+			cnt++
+			time.Sleep(1 * time.Second)
+			cache, err = api.NewRedisCache(ttl, config)
+			if err == nil {
+				break
+			}
+			if cnt > 120 {
+				log.Fatalln("Can not connect to redis", err)
+			}
+
+		}
+	}
 	client := search.NewClient("BXFJWGU0RM", "ef746e2d654d89f2a32f82fd9ffebf9e")
 	algoliaOrderIndex := client.InitIndex("orders-ua")
 
@@ -142,7 +159,7 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 	//router.Use(gin.Logger())
 	if srv == "prod" || srv == "dev" {
 		router.Use(cors.New(cors.Config{
-			AllowOrigins:     []string{"https://app.grayll.io", "https://admin.grayll.io", "http://127.0.0.1:4200"},
+			AllowOrigins:     []string{"https://app.grayll.io", "https://admin.grayll.io"},
 			AllowMethods:     []string{"POST, GET, OPTIONS, PUT, DELETE"},
 			AllowHeaders:     []string{"Authorization", "Origin", "Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token"},
 			ExposeHeaders:    []string{"Content-Length"},
@@ -203,7 +220,7 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 	v1.GET("/verifyemail/:email", userHandler.VerifyEmail())
 
 	v1admin := router.Group("/api/admin/v1")
-	//v1admin.POST("/accounts/loginadmin", userHandler.LoginAdmin())
+	v1admin.POST("/accounts/loginadmin", userHandler.LoginAdmin())
 	v1admin.Use(api.Authorize(appContext.Jwt))
 	{
 		v1admin.GET("/users/getusersmeta/:cursor", userHandler.GetUsersMeta())

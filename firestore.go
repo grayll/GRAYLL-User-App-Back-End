@@ -68,24 +68,28 @@ func GetFsClient1(isLocal bool) (*firestore.Client, error) {
 func GetFsClient(isLocal bool) (*firestore.Client, error) {
 	var client *firestore.Client
 	var err error
-
+	projectID := "grayll-app-f3f3f3"
 	ctx := context.Background()
 	if isLocal {
 		opt := option.WithCredentialsFile("grayll-app-f3f3f3-firebase-adminsdk-vhclm-e074da6170.json")
-		app, err := firebase.NewApp(ctx, nil, opt)
-		if err != nil {
-			log.Fatalln("Error create new gray user app:", err)
-		}
-		client, err = app.Firestore(ctx)
-	} else {
-		projectID := "grayll-app-f3f3f3"
-		conf := &firebase.Config{ProjectID: projectID}
-		app, err := firebase.NewApp(ctx, conf)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		// app, err := firebase.NewApp(ctx, nil, opt)
+		// if err != nil {
+		// 	log.Fatalln("Error create new gray user app:", err)
+		// }
+		// client, err = app.Firestore(ctx)
+		client, err = firestore.NewClient(ctx, projectID, opt)
 
-		client, err = app.Firestore(ctx)
+	} else {
+
+		// conf := &firebase.Config{ProjectID: projectID}
+		// app, err := firebase.NewApp(ctx, conf)
+		// if err != nil {
+		// 	log.Fatalln(err)
+		// }
+
+		//client, err = app.Firestore(ctx)
+		client, err = firestore.NewClient(ctx, projectID)
+
 		if err != nil {
 			log.Fatalln(err)
 		}

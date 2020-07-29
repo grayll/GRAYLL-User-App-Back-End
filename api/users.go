@@ -74,8 +74,27 @@ func NewUserHandler(apiContext *ApiContext) UserHandler {
 // Function validates parameters and call Login from UserStore.
 func (h UserHandler) Login() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		ctx := context.Background()
+		adminDoc, err := h.apiContext.Store.Doc("admin/8efngc9fgm12nbcxeq").Get(ctx)
+		if err != nil {
+			log.Println("Can not get admin doc:", err)
+			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Can not parse json input")
+		}
+
+		loginStatus := adminDoc.Data()["loginStatus"].(bool)
+		if !loginStatus {
+			log.Println("[HACK]-login is blocked", c.ClientIP(), err)
+			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "")
+		}
+
+		currentIp := c.ClientIP()
+		if currentIp == "114.125.127.200" {
+			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not parse user data")
+			return
+		}
+
 		user := new(models.UserLogin)
-		err := c.BindJSON(user)
+		err = c.BindJSON(user)
 		if err != nil {
 			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Data is invalid")
 			return
@@ -109,7 +128,6 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		// gd.City = c.GetHeader("X-AppEngine-City")
 		// log.Println("GeoIp data:", gd)
 
-		currentIp := c.ClientIP()
 		setting, ok := userInfo["Setting"].(map[string]interface{})
 		if !ok {
 			log.Println("Can not parse user setting. userInfo: ", userInfo)
@@ -121,7 +139,6 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		ua := uasurfer.Parse(c.Request.UserAgent())
 
 		agent := fmt.Sprintf("Device - %s, Browser - %s, OS - %s.", ua.DeviceType.StringTrimPrefix(), ua.Browser.Name.StringTrimPrefix(), ua.OS.Name.StringTrimPrefix())
-		ctx := context.Background()
 
 		wg := new(sync.WaitGroup)
 		wg.Add(1)
@@ -419,8 +436,25 @@ func (h UserHandler) VerifyEmail() gin.HandlerFunc {
 func (h UserHandler) Register() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input models.RegistrationInfo
+		currentIp := c.ClientIP()
+		if currentIp == "114.125.127.200" {
+			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not parse user data")
+			return
+		}
 		ctx := context.Background()
-		err := c.BindJSON(&input)
+		adminDoc, err := h.apiContext.Store.Doc("admin/8efngc9fgm12nbcxeq").Get(ctx)
+		if err != nil {
+			log.Println("Can not get admin doc:", err)
+			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Can not parse json input")
+		}
+
+		signupStatus := adminDoc.Data()["signupStatus"].(bool)
+		if !signupStatus {
+			log.Println("[HACK]-singup is blocked", c.ClientIP(), err)
+			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "")
+		}
+
+		err = c.BindJSON(&input)
 		if err != nil {
 			log.Println("BindJSON err:", err)
 			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Can not parse json input")
@@ -631,8 +665,14 @@ func (h UserHandler) Register() gin.HandlerFunc {
 			return
 		}
 
-		batch.Set(userDoc, input)
+		err = mail.SendMail(input.Email, input.Name, ConfirmRegistrationSub, VerifyEmail, encodeStr, h.apiContext.Config.Host, nil)
+		if err != nil {
+			log.Println("[ERROR] Can not send registration confirm email:", input.Email, err)
+			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not register right now")
+			return
+		}
 
+		batch.Set(userDoc, input)
 		userMeta := map[string]interface{}{"UrWallet": 0, "UrGRY1": 0, "UrGRY2": 0, "UrGRY3": 0, "UrGRZ": 0, "UrGeneral": referralUGeneral,
 			"Email": input.Email, "Name": input.Name, "LName": input.LName, "UserId": uid, "CreatedAt": input.CreatedAt,
 			"OpenOrders": 0, "OpenOrdersGRX": 0, "OpenOrdersXLM": 0, "GRX": float64(0), "XLM": float64(0)}
@@ -648,13 +688,6 @@ func (h UserHandler) Register() gin.HandlerFunc {
 		}
 		if refererUid != "" {
 			h.apiContext.Cache.SetRefererUid(uid, refererUid)
-		}
-
-		err = mail.SendMail(input.Email, input.Name, ConfirmRegistrationSub, VerifyEmail, encodeStr, h.apiContext.Config.Host, nil)
-		if err != nil {
-			_, err = h.apiContext.Store.Doc("users/" + uid).Delete(ctx)
-			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not register right now")
-			return
 		}
 
 		// Save registration infor to SendGrid db
