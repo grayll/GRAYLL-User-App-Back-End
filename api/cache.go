@@ -321,3 +321,16 @@ func (cache *RedisCache) GetRois(algo string) []float64 {
 	return res
 
 }
+
+// emaillogin emailregister
+func (cache *RedisCache) SetRecapchaToken(emailAction, recapchaToken string) {
+	cache.Client.Set(emailAction+"-recapcha", recapchaToken, time.Minute*2)
+}
+
+func (cache *RedisCache) CheckRecapchaToken(emailAction string) bool {
+	_, err := cache.Client.Get(emailAction + "-recapcha").Result()
+	if err != nil || err == redis.Nil {
+		return false
+	}
+	return true
+}

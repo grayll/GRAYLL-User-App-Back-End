@@ -26,6 +26,7 @@ import (
 	"google.golang.org/api/option"
 
 	libredis "github.com/go-redis/redis/v7"
+	ccm "github.com/orcaman/concurrent-map"
 	limiter "github.com/ulule/limiter/v3"
 	mgin "github.com/ulule/limiter/v3/drivers/middleware/gin"
 	sredis "github.com/ulule/limiter/v3/drivers/store/redis"
@@ -121,6 +122,14 @@ func main() {
 	}
 	appContext.CloudTaskClient = cloudTaskClient
 
+	// Concurrent map for blocking IP
+	ipmap := ccm.New()
+	GetBlockedIPs(appContext, ipmap)
+	appContext.BlockIPs = ipmap
+
+	// log.Println(appContext.BlockIPs.Has("36.72.212.192"))
+	// log.Println(appContext.BlockIPs.Has("36.72.2121.192"))
+
 	router := SetupRouter(appContext, srv)
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -128,7 +137,17 @@ func main() {
 	}
 	router.Run(":" + port)
 }
+func GetBlockedIPs(appContext *api.ApiContext, ipmap ccm.ConcurrentMap) {
+	doc, err := appContext.Store.Doc("blocked_ips/ips").Get(context.Background())
+	if err != nil {
+		log.Println("ERROR unable get blocked ips")
+	}
 
+	list := doc.Data()["arrs"].([]interface{})
+	for _, ip := range list {
+		ipmap.Set(ip.(string), "")
+	}
+}
 func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 	//gin.SetMode(gin.ReleaseMode)
 	rateFormat := "20-M"
@@ -218,6 +237,7 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 
 	v1.GET("/checkpw", userHandler.CheckPw())
 	v1.GET("/verifyemail/:email", userHandler.VerifyEmail())
+	v1.POST("/verifyrecapchatoken/:email/:action", userHandler.VerifyRecapchaToken())
 
 	v1admin := router.Group("/api/admin/v1")
 	v1admin.POST("/accounts/loginadmin", userHandler.LoginAdmin())

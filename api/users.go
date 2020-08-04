@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/base32"
@@ -85,13 +86,30 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		if !loginStatus {
 			log.Println("[HACK]-login is blocked", c.ClientIP(), err)
 			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "")
+			return
 		}
 
 		currentIp := c.ClientIP()
-		if currentIp == "114.125.127.200" {
+		city, country := utils.GetCityCountry("http://www.geoplugin.net/json.gp?ip=" + currentIp)
+		if country == "Indonesia" {
+			log.Println("ERROR - LOGIN BOT - Indonesia bot", city, currentIp)
+			//GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not parse user data")
+			//return
+		}
+
+		if h.apiContext.BlockIPs.Has(currentIp) {
+			log.Println("ERROR - LOGIN blocked ip", currentIp, city)
 			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not parse user data")
 			return
 		}
+
+		ua := uasurfer.Parse(c.Request.UserAgent())
+
+		agent := fmt.Sprintf("Device - %s, Browser - %s, OS - %s.", ua.DeviceType.StringTrimPrefix(), ua.Browser.Name.StringTrimPrefix(), ua.OS.Name.StringTrimPrefix())
+		// if currentIp == "114.125.127.200" {
+		// 	GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not parse user data")
+		// 	return
+		// }
 
 		user := new(models.UserLogin)
 		err = c.BindJSON(user)
@@ -99,6 +117,17 @@ func (h UserHandler) Login() gin.HandlerFunc {
 			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Data is invalid")
 			return
 		}
+		if !h.apiContext.Cache.CheckRecapchaToken(user.Email + "login") {
+			log.Println("ERROR - HACK LOGIN BOT - bypass recapcha - blocked IP", city, user.Email, currentIp)
+			h.apiContext.BlockIPs.Set(currentIp, "")
+			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Can not parse json input")
+			return
+		}
+		// if strings.Count(user.Email, ".") > 3 {
+		// 	log.Println("ERROR - LOGIN BOT - Email has dot > 3", city, user.Email, currentIp)
+		// 	GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Can not parse json input")
+		// 	return
+		// }
 		// Validate user data
 		if !user.Validate() {
 			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Data is invalid")
@@ -134,11 +163,6 @@ func (h UserHandler) Login() gin.HandlerFunc {
 			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not parse user data")
 			return
 		}
-
-		city, country := utils.GetCityCountry("http://www.geoplugin.net/json.gp?ip=" + currentIp)
-		ua := uasurfer.Parse(c.Request.UserAgent())
-
-		agent := fmt.Sprintf("Device - %s, Browser - %s, OS - %s.", ua.DeviceType.StringTrimPrefix(), ua.Browser.Name.StringTrimPrefix(), ua.OS.Name.StringTrimPrefix())
 
 		wg := new(sync.WaitGroup)
 		wg.Add(1)
@@ -431,32 +455,126 @@ func (h UserHandler) VerifyEmail() gin.HandlerFunc {
 	}
 }
 
+func (h UserHandler) VerifyRecapchaToken() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		var respApi = make(map[string]string)
+		respApi["status"] = "fail"
+
+		var respData struct {
+			Success      bool      `json:"success"`      // whether this request was a valid reCAPTCHA token for your site
+			Score        float64   `json:"score"`        // the score for this request (0.0 - 1.0)
+			Action       string    `json:"action"`       // the action name for this request (important to verify)
+			Challenge_ts time.Time `json:"challenge_ts"` // timestamp of the challenge load (ISO format yyyy-MM-dd'T'HH:mm:ssZZ)
+			Hostname     string    `json:"hostname"`     // the hostname of the site where the reCAPTCHA was solved
+
+		}
+
+		token, err := ExtractToken(c.Request)
+		if err != nil {
+			fmt.Printf("VerifyRecapchaToken: Authorization header does not contain Bearer\n", err)
+			//respData.Success = false
+			// w.WriteHeader(http.StatusUnauthorized)
+			// json.NewEncoder(w).Encode(respData)
+			//respApi["status"] = "fail"
+			c.JSONP(http.StatusUnauthorized, respApi)
+			return
+		}
+
+		email := c.Param("email")
+		action := c.Param("action")
+
+		url := "https://www.google.com/recaptcha/api/siteverify"
+		secret := "6LfYI7EUAAAAAKGxMquwzN5EsJHlp-0_bfspQhGI"
+		url = fmt.Sprintf("%s?secret=%s&response=%s", url, secret, token)
+		req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte("{}")))
+		if err != nil {
+			log.Println("verifyRecapchaToken: Can not create new req")
+			//respApi["status"] = "fail"
+			// w.WriteHeader(http.StatusInternalServerError)
+			// json.NewEncoder(w).Encode(&respApi)
+			c.JSON(http.StatusUnauthorized, respApi)
+			return
+		}
+
+		client := http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Printf("verifyRecapchaToken: call client.Do() error %v\n", err)
+			c.JSONP(http.StatusUnauthorized, respApi)
+			return
+		}
+		//defer resp.Body.Close()
+		err = json.NewDecoder(resp.Body).Decode(&respData)
+		if err != nil {
+			log.Printf("verifyRecapchaToken: call resp.Body error %v\n", err)
+			c.JSONP(http.StatusUnauthorized, respApi)
+			return
+		}
+
+		if respData.Score > 0.5 {
+			respApi["status"] = "success"
+		}
+		if action == "login" || action == "register" {
+			h.apiContext.Cache.SetRecapchaToken(email+action, token)
+		} else {
+			respApi["status"] = "fail"
+		}
+
+		c.JSONP(http.StatusOK, respApi)
+	}
+}
+
 // Register handles register router.
 // Function validates parameters and call Register from UserStore.
 func (h UserHandler) Register() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input models.RegistrationInfo
 		currentIp := c.ClientIP()
-		if currentIp == "114.125.127.200" {
+		city, country := utils.GetCityCountry("http://www.geoplugin.net/json.gp?ip=" + currentIp)
+		if country == "Indonesia" {
+			log.Println("ERROR - REGISTER BOT - Indonesia bot", city, input.Email, currentIp)
 			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not parse user data")
 			return
 		}
+
+		if h.apiContext.BlockIPs.Has(currentIp) {
+			log.Println("ERROR -REGISTER - blocked ip", currentIp, country)
+			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not parse user data")
+			return
+		}
+
 		ctx := context.Background()
 		adminDoc, err := h.apiContext.Store.Doc("admin/8efngc9fgm12nbcxeq").Get(ctx)
 		if err != nil {
 			log.Println("Can not get admin doc:", err)
 			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Can not parse json input")
+			return
 		}
 
 		signupStatus := adminDoc.Data()["signupStatus"].(bool)
 		if !signupStatus {
 			log.Println("[HACK]-singup is blocked", c.ClientIP(), err)
 			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "")
+			return
 		}
 
 		err = c.BindJSON(&input)
 		if err != nil {
 			log.Println("BindJSON err:", err)
+			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Can not parse json input")
+			return
+		}
+
+		// if strings.Count(input.Email, ".") >= 2 {
+		// 	log.Println("ERROR - REGISTER BOT - Email has two dot", city, input.Email, currentIp)
+		// 	GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Can not parse json input")
+		// 	return
+		// }
+
+		if !h.apiContext.Cache.CheckRecapchaToken(input.Email + "register") {
+			log.Println("ERROR - HACK REGISTER BOT - bypass recapcha - blocked IP", city, input.Email, currentIp)
+			h.apiContext.BlockIPs.Set(currentIp, "")
 			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Can not parse json input")
 			return
 		}

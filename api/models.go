@@ -6,6 +6,8 @@ import (
 	"cloud.google.com/go/firestore"
 	"github.com/algolia/algoliasearch-client-go/v3/algolia/search"
 	"github.com/huyntsgs/stellar-service/assets"
+
+	ccm "github.com/orcaman/concurrent-map"
 )
 
 type Config struct {
@@ -45,6 +47,7 @@ type ApiContext struct {
 	CloudTaskClient *cloudtasks.Client
 	//AlgoliaClient *search.Client
 	OrderIndex *search.Index
+	BlockIPs   ccm.ConcurrentMap
 }
 
 type ReportDataSetting struct {

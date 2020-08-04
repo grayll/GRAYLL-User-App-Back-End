@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"strconv"
+	"strings"
 
 	//"bytes"
 	//"fmt"
@@ -150,6 +151,15 @@ func GinRespond(c *gin.Context, status int, errCode, msg string) {
 		"errCode": errCode, "msg": msg,
 	})
 	c.Abort()
+}
+func ExtractToken(r *http.Request) (string, error) {
+	tokenEncrypted := r.Header.Get("Authorization")
+
+	if !strings.Contains(tokenEncrypted, "Bearer ") {
+		return "", errors.New("Authorization header not contain Bearer")
+	}
+	tokenEncrypted = tokenEncrypted[7:]
+	return tokenEncrypted, nil
 }
 
 type Price struct {
