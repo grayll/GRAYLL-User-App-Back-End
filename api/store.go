@@ -6,8 +6,6 @@ import (
 
 	//"bitbucket.org/grayll/grayll.io-user-app-back-end/models"
 	"cloud.google.com/go/firestore"
-
-	"google.golang.org/api/iterator"
 )
 
 func GetUserByField(client *firestore.Client, field, value string) (map[string]interface{}, string) {
@@ -19,16 +17,9 @@ func GetUserByField(client *firestore.Client, field, value string) (map[string]i
 		}
 		return docSnap.Data(), docSnap.Ref.ID
 	}
-	it := client.Collection("users").Where(field, "==", value).Limit(1).Documents(ctx)
-	for {
-		doc, err := it.Next()
-		if err == iterator.Done {
-			return nil, ""
-		}
-		if doc == nil {
-			return nil, ""
-		}
-		return doc.Data(), doc.Ref.ID
+	docs, err := client.Collection("users").Where(field, "==", value).Limit(1).Documents(ctx).GetAll()
+	if err == nil && len(docs) > 0 {
+		return docs[0].Data(), docs[0].Ref.ID
 	}
-	//return nil, ""
+	return nil, ""
 }

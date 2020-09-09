@@ -98,20 +98,8 @@ func main() {
 	// connect redis
 	ttl, _ := time.ParseDuration("12h")
 	cache, err := api.NewRedisCache(ttl, config)
-	cnt := 0
 	if err != nil {
-		for {
-			cnt++
-			time.Sleep(1 * time.Second)
-			cache, err = api.NewRedisCache(ttl, config)
-			if err == nil {
-				break
-			}
-			if cnt > 120 {
-				log.Fatalln("Can not connect to redis", err)
-			}
-
-		}
+		log.Fatalln("ERROR - main - unable connect to redis", err)
 	}
 	client := search.NewClient("BXFJWGU0RM", "ef746e2d654d89f2a32f82fd9ffebf9e")
 	algoliaOrderIndex := client.InitIndex("orders-ua")
@@ -126,9 +114,6 @@ func main() {
 	ipmap := ccm.New()
 	GetBlockedIPs(appContext, ipmap)
 	appContext.BlockIPs = ipmap
-
-	// log.Println(appContext.BlockIPs.Has("36.72.212.192"))
-	// log.Println(appContext.BlockIPs.Has("36.72.2121.192"))
 
 	router := SetupRouter(appContext, srv)
 	port := os.Getenv("PORT")
@@ -245,6 +230,7 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 	{
 		v1admin.GET("/users/getusersmeta/:cursor", userHandler.GetUsersMeta())
 		v1admin.POST("/users/setstatus", userHandler.SetStatus())
+		v1admin.GET("/users/getuserdata/:searchStr", userHandler.GetUserData())
 	}
 
 	// apis needs to authenticate
@@ -283,6 +269,7 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 		v1.POST("/users/saveReportSetting", userHandler.SaveReportSetting())
 
 		v1.POST("/users/MakeTransaction", userHandler.MakeTransaction())
+		v1.POST("/users/PayLoan", userHandler.PayLoan())
 
 		v1.POST("/phones/sendcode", phones.SendSms())
 		v1.POST("/phones/verifycode", phones.VerifyCode())

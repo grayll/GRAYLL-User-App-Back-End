@@ -1,6 +1,7 @@
 package mail
 
 import (
+	//"log"
 	//"io/ioutil"
 	//"log"
 	"testing"
@@ -34,12 +35,14 @@ func TestSendMail(t *testing.T) {
 	// 	log.Fatalln(err)
 	// }
 
-	// SendMail("huynt580@gmail.com", "Huy", "Confirm your registration with GRAYLL",
+	// SendMail("huykbc@outlook.com", "Huy", "Confirm your registration with GRAYLL",
 	// 	"verifyEmail", "tAb8gxCCVdWLUWGBgARPIoOoj3D0Ds9kAwu1dJQYBKwAAAF")
+
+	SendNoticeMail("huykbc@gmail.com", "Huy", "Confirm your registration with GRAYLL", []string{"aa", "bb"})
 }
 
 func TestSaveRegistrationInfo(t *testing.T) {
 	//CreateCustomField()
 	//SaveRegistrationInfo("huy", "ngt", "huykbc@gmail.com", 1580313365)
-	SaveLoanPaidInfo("huy", "ngt", "huykbc@gmail.com", "yes", 1580313365, 2)
+	//SaveLoanPaidInfo("huy", "ngt", "huykbc@gmail.com", "yes", 1580313365, 2)
 }

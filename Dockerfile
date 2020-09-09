@@ -4,6 +4,9 @@
 FROM golang:1.12 as builder
 
 # Copy local code to the container image.
+WORKDIR /home/bc/go/src/bitbucket.org/huykbc/goautoneg
+COPY . /home/bc/go/src/bitbucket.org/huykbc/goautoneg
+
 WORKDIR /go/src/bitbucket.org/grayll/grayll.io-user-app-back-end
 COPY . .
 

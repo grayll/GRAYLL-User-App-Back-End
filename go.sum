@@ -222,6 +222,14 @@ github.com/huyntsgs/stellar-service v0.0.0-20200209144523-337366ca82af h1:YJMB1L
 github.com/huyntsgs/stellar-service v0.0.0-20200209144523-337366ca82af/go.mod h1:ewqQemA1o3IpuI7+jR6ccTDIQDhNwPywp931gz+xRWQ=
 github.com/huyntsgs/stellar-service v0.0.0-20200511152020-7a130845cf0d h1:ONbbHLlen4bZZN14O9PdAvZWGsuZVjniYRuxR9NpTQQ=
 github.com/huyntsgs/stellar-service v0.0.0-20200511152020-7a130845cf0d/go.mod h1:ewqQemA1o3IpuI7+jR6ccTDIQDhNwPywp931gz+xRWQ=
+github.com/huyntsgs/stellar-service v0.0.0-20200806032434-bd56cee7772e h1:KHQ25FxN8E5hL0Ynrbod8vZIv2dlxlHMpejf1p4mWvQ=
+github.com/huyntsgs/stellar-service v0.0.0-20200806032434-bd56cee7772e/go.mod h1:ewqQemA1o3IpuI7+jR6ccTDIQDhNwPywp931gz+xRWQ=
+github.com/huyntsgs/stellar-service v0.0.0-20200806034923-4dfa51ec2c41 h1:+XVJqdRi6ps+63ltIvxfoBZrJhBbmrGHetfThFoZgC4=
+github.com/huyntsgs/stellar-service v0.0.0-20200806034923-4dfa51ec2c41/go.mod h1:ewqQemA1o3IpuI7+jR6ccTDIQDhNwPywp931gz+xRWQ=
+github.com/huyntsgs/stellar-service v0.0.0-20200806084504-a510e672fd5f h1:abkF4Du+gXDEHPq8HHZF2jBfci8qvwtzutn29Ti62aE=
+github.com/huyntsgs/stellar-service v0.0.0-20200806084504-a510e672fd5f/go.mod h1:ewqQemA1o3IpuI7+jR6ccTDIQDhNwPywp931gz+xRWQ=
+github.com/huyntsgs/stellar-service v0.0.0-20200811102404-492829a6952c h1:qp7ZXq4TljEILlzsuaj7wOzqXSerQiY2ODw5DHo3peA=
+github.com/huyntsgs/stellar-service v0.0.0-20200811102404-492829a6952c/go.mod h1:ewqQemA1o3IpuI7+jR6ccTDIQDhNwPywp931gz+xRWQ=
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/imdario/mergo v0.3.6/go.mod h1:2EnlNZ0deacrJVfApfmtdGgDfMuh/nq6Ok1EcJh5FfA=
 github.com/imdario/mergo v0.3.8 h1:CGgOkSJeqMRmt0D9XLWExdT4m4F1vd3FV3VPt+0VxkQ=

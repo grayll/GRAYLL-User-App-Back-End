@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"strings"
+
 	//"strings"
 
 	"encoding/json"
@@ -208,7 +210,36 @@ func (h UserHandler) GetUsersMeta() gin.HandlerFunc {
 
 	}
 }
+func (h UserHandler) GetUserData() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx := context.Background()
+		searchStr := c.Param("searchStr")
+		log.Println(searchStr)
 
+		userData := make(map[string]interface{})
+		errCode := NOT_FOUND
+		if strings.Contains(searchStr, "@") {
+			doc, err := h.apiContext.Store.Collection("users_meta").Where("Email", "==", searchStr).Documents(ctx).GetAll()
+			log.Println(err)
+			if len(doc) > 0 {
+				userData = doc[0].Data()
+				errCode = SUCCESS
+			}
+		} else if strings.Contains(searchStr, "G") && len(searchStr) == 56 {
+			doc, _ := h.apiContext.Store.Collection("users_meta").Where("PublicKey", "==", searchStr).Documents(ctx).GetAll()
+
+			if len(doc) > 0 {
+				userData = doc[0].Data()
+				errCode = SUCCESS
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"errCode": errCode, "userData": userData,
+		})
+
+	}
+}
 func (h UserHandler) LoginAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user := new(models.UserLogin)

@@ -23,7 +23,8 @@ import (
 	"bitbucket.org/grayll/grayll.io-user-app-back-end/models"
 	"bitbucket.org/grayll/grayll.io-user-app-back-end/utils"
 	"cloud.google.com/go/firestore"
-	"github.com/SherClockHolmes/webpush-go"
+
+	//"github.com/SherClockHolmes/webpush-go"
 	"github.com/asaskevich/govalidator"
 	"github.com/avct/uasurfer"
 	"github.com/dgryski/dgoogauth"
@@ -106,10 +107,6 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		ua := uasurfer.Parse(c.Request.UserAgent())
 
 		agent := fmt.Sprintf("Device - %s, Browser - %s, OS - %s.", ua.DeviceType.StringTrimPrefix(), ua.Browser.Name.StringTrimPrefix(), ua.OS.Name.StringTrimPrefix())
-		// if currentIp == "114.125.127.200" {
-		// 	GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not parse user data")
-		// 	return
-		// }
 
 		user := new(models.UserLogin)
 		err = c.BindJSON(user)
@@ -118,16 +115,12 @@ func (h UserHandler) Login() gin.HandlerFunc {
 			return
 		}
 		if !h.apiContext.Cache.CheckRecapchaToken(user.Email + "login") {
-			log.Println("ERROR - HACK LOGIN BOT - bypass recapcha - blocked IP", city, user.Email, currentIp)
-			h.apiContext.BlockIPs.Set(currentIp, "")
+			log.Println("ERROR - HACK LOGIN BOT - bypass recapcha - not block IP", currentIp, city, user.Email)
+			//h.apiContext.BlockIPs.Set(currentIp, "")
 			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Can not parse json input")
 			return
 		}
-		// if strings.Count(user.Email, ".") > 3 {
-		// 	log.Println("ERROR - LOGIN BOT - Email has dot > 3", city, user.Email, currentIp)
-		// 	GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Can not parse json input")
-		// 	return
-		// }
+
 		// Validate user data
 		if !user.Validate() {
 			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Data is invalid")
@@ -203,38 +196,38 @@ func (h UserHandler) Login() gin.HandlerFunc {
 						title := "GRAYLL | IP Address Verification"
 						body := fmt.Sprintf("This IP address %s is unknown! An IP address verification link has been sent to your email.", currentIp)
 						notice := map[string]interface{}{
-							"type":    "general",
-							"title":   title,
-							"isRead":  false,
-							"body":    body,
-							"time":    time.Now().Unix(),
-							"vibrate": []int32{100, 50, 100},
-							"icon":    "https://app.grayll.io/favicon.ico",
-							"data": map[string]interface{}{
-								"url": h.apiContext.Config.Host + "/notifications/overview",
-							},
+							"type":   "general",
+							"title":  title,
+							"isRead": false,
+							"body":   body,
+							"time":   time.Now().Unix(),
+							// "vibrate": []int32{100, 50, 100},
+							// "icon":    "https://app.grayll.io/favicon.ico",
+							// "data": map[string]interface{}{
+							// 	"url": h.apiContext.Config.Host + "/notifications/overview",
+							// },
 						}
 
-						go func() {
-							subs, err := h.apiContext.Cache.GetUserSubs(uid)
-							if err == nil && subs != "" {
-								//log.Println("subs: ", subs)
-								noticeData := map[string]interface{}{
-									"notification": notice,
-								}
-								webpushSub := webpush.Subscription{}
-								err = json.Unmarshal([]byte(subs), &webpushSub)
-								if err != nil {
-									log.Println("Unmarshal subscription from redis error: ", err)
-									return
-								}
-								err = PushNotice(noticeData, &webpushSub)
-								if err != nil {
-									log.Println("PushNotice error: ", err)
-									//return
-								}
-							}
-						}()
+						// go func() {
+						// 	subs, err := h.apiContext.Cache.GetUserSubs(uid)
+						// 	if err == nil && subs != "" {
+						// 		//log.Println("subs: ", subs)
+						// 		noticeData := map[string]interface{}{
+						// 			"notification": notice,
+						// 		}
+						// 		webpushSub := webpush.Subscription{}
+						// 		err = json.Unmarshal([]byte(subs), &webpushSub)
+						// 		if err != nil {
+						// 			log.Println("Unmarshal subscription from redis error: ", err)
+						// 			return
+						// 		}
+						// 		err = PushNotice(noticeData, &webpushSub)
+						// 		if err != nil {
+						// 			log.Println("PushNotice error: ", err)
+						// 			//return
+						// 		}
+						// 	}
+						// }()
 
 						// Save to firestore
 						docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
@@ -269,18 +262,18 @@ func (h UserHandler) Login() gin.HandlerFunc {
 					h.apiContext.Cache.SetNotice(uid, field, val.(bool))
 				}
 			}
-			if subs, ok := userInfo["Subs"]; ok {
-				log.Println("Subs:", subs)
-				s, err := json.Marshal(subs)
-				if err != nil {
-					log.Println("Can not find parse subs:", err)
-				}
-				h.apiContext.Cache.SetUserSubs(uid, string(s))
+			// if subs, ok := userInfo["Subs"]; ok {
+			// 	log.Println("Subs:", subs)
+			// 	s, err := json.Marshal(subs)
+			// 	if err != nil {
+			// 		log.Println("Can not find parse subs:", err)
+			// 	}
+			// 	h.apiContext.Cache.SetUserSubs(uid, string(s))
 
-				if _, ok := userInfo["Subs"]; ok {
-					userInfo["Subs"] = true
-				}
-			}
+			// 	if _, ok := userInfo["Subs"]; ok {
+			// 		userInfo["Subs"] = true
+			// 	}
+			// }
 		}()
 
 		// First login time, send mail notice
@@ -355,16 +348,16 @@ func (h UserHandler) Login() gin.HandlerFunc {
 		userBasicInfo["LocalKey"] = localKey
 
 		// check HMAC hex string for Intercom
-		_hmc := ""
-		if hmac, ok := userInfo["Hmac"]; !ok {
-			_hmc = Hmac("kFOLecggKkSgaWGn_dyoFzZyuY8wFtzkvcncIU-J", userInfo["Email"].(string))
-			userInfo["Hmac"] = _hmc
-			_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{
-				"Hmac": _hmc,
-			}, firestore.MergeAll)
-		} else {
-			_hmc = hmac.(string)
-		}
+		// _hmc := ""
+		// if hmac, ok := userInfo["Hmac"]; !ok {
+		// 	_hmc = Hmac("kFOLecggKkSgaWGn_dyoFzZyuY8wFtzkvcncIU-J", userInfo["Email"].(string))
+		// 	userInfo["Hmac"] = _hmc
+		// 	_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{
+		// 		"Hmac": _hmc,
+		// 	}, firestore.MergeAll)
+		// } else {
+		// 	_hmc = hmac.(string)
+		// }
 
 		tokeExpTime := time.Now().Unix() + TokeExpiredTime
 		userMeta := map[string]interface{}{"UrWallet": 0, "UrGRY1": 0, "UrGRY2": 0, "UrGRY3": 0, "UrGRZ": 0, "UrGeneral": 0, "OpenOrders": 0, "OpenOrdersGRX": 0,
@@ -472,7 +465,7 @@ func (h UserHandler) VerifyRecapchaToken() gin.HandlerFunc {
 
 		token, err := ExtractToken(c.Request)
 		if err != nil {
-			fmt.Printf("VerifyRecapchaToken: Authorization header does not contain Bearer\n", err)
+			fmt.Println("VerifyRecapchaToken: Authorization header does not contain Bearer\n", err)
 			//respData.Success = false
 			// w.WriteHeader(http.StatusUnauthorized)
 			// json.NewEncoder(w).Encode(respData)
@@ -483,6 +476,13 @@ func (h UserHandler) VerifyRecapchaToken() gin.HandlerFunc {
 
 		email := c.Param("email")
 		action := c.Param("action")
+
+		log.Println("ERROR VerifyRecapchaToken - ", email, action)
+
+		if email == "" || action == "" {
+			c.JSON(http.StatusUnauthorized, respApi)
+			return
+		}
 
 		url := "https://www.google.com/recaptcha/api/siteverify"
 		secret := "6LfYI7EUAAAAAKGxMquwzN5EsJHlp-0_bfspQhGI"
@@ -585,11 +585,11 @@ func (h UserHandler) Register() gin.HandlerFunc {
 			GinRespond(c, http.StatusBadRequest, INVALID_PARAMS, "Input data is invalid")
 			return
 		}
-		err = VerifyEmailNeverBounce(h.apiContext.Config.NeverBounceApiKey, input.Email)
-		if err != nil {
-			GinRespond(c, http.StatusOK, EMAIL_INVALID, "Email address is invalid")
-			return
-		}
+		// err = VerifyEmailNeverBounce(h.apiContext.Config.NeverBounceApiKey, input.Email)
+		// if err != nil {
+		// 	GinRespond(c, http.StatusOK, EMAIL_INVALID, "Email address is invalid")
+		// 	return
+		// }
 		userInfo, _ := GetUserByField(h.apiContext.Store, "Email", input.Email)
 		if userInfo != nil {
 			GinRespond(c, http.StatusOK, EMAIL_IN_USED, "Email already registered")
@@ -1261,12 +1261,12 @@ func (h UserHandler) SaveSubcriber() gin.HandlerFunc {
 
 		// Add subs to cache
 		go func() {
-			_, err = h.apiContext.Cache.SetUserSubs(uid, string(rawData))
-			if err != nil {
-				// GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
-				// return
-				log.Println("Can not save the subs to cache: ", err)
-			}
+			// _, err = h.apiContext.Cache.SetUserSubs(uid, string(rawData))
+			// if err != nil {
+			// 	// GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
+			// 	// return
+			// 	log.Println("Can not save the subs to cache: ", err)
+			// }
 
 			// for k, v := range data {
 			// 	_, err = h.apiContext.Cache.SetNotice(uid, k, v)
@@ -1618,7 +1618,7 @@ func (h UserHandler) ResetPassword() gin.HandlerFunc {
 			return
 		}
 
-		log.Println("ResetPassword: info: ", input)
+		//log.Println("ResetPassword: info: ", input)
 		// Validate user data
 		if govalidator.IsNull(input.OobCode) || govalidator.IsNull(input.NewPassword) {
 			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Input data is invalid")
@@ -1815,6 +1815,7 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 		if stellar.IsMainNet {
 			seq, hash, err := stellar.SendXLMCreateAccount(input.PublicKey, float64(2.1), h.apiContext.Config.XlmLoanerSeed)
 			if err != nil {
+				log.Println("ERROR - AccountValidate - unable to create account", uid, err)
 				GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
 				return
 			}
@@ -3366,4 +3367,25 @@ func (h UserHandler) TxVerify() gin.HandlerFunc {
 		}
 		//GinRespond(c, http.StatusOK, INVALID_CODE, "Can not parse ledger information")
 	}
+}
+
+func ReconnectFireStore(projectId string, timeout int) (*firestore.Client, error) {
+	cnt := 0
+	var client *firestore.Client
+	var err error
+	ctx := context.Background()
+	for {
+		cnt++
+		time.Sleep(1 * time.Second)
+		client, err = firestore.NewClient(ctx, projectId)
+		if err == nil {
+			break
+		}
+		if cnt > timeout {
+			log.Println("[ERROR] Can not connect to firestore after retry times", cnt, projectId, err)
+			break
+		}
+
+	}
+	return client, err
 }

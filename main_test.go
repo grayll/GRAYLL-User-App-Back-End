@@ -4,6 +4,9 @@ import (
 	"context"
 	"time"
 
+	"bitbucket.org/grayll/grayll.io-user-app-back-end/api"
+	stellar "github.com/huyntsgs/stellar-service"
+
 	"cloud.google.com/go/firestore"
 
 	//"cloud.google.com/go/firestore"
@@ -31,8 +34,12 @@ const (
 func TestVerify(t *testing.T) {
 	//QueryAlgoPosition()
 	//checkExistUserMeta()
-	CheckUser("", "")
+	CheckUser("", "sanchezbuenoelromeral@gmail.com")
+	//DelUsers()
+	//DelUser("andsoft88@gmail.com")
+	//MergeAccount("GC5TQRTXZHXIOSKI4SXRVVIRALFZQ6SV2D7WCFUGP2M2TRN3UFRKCOD2")
 }
+
 func GetFloatValue(input interface{}) float64 {
 	switch input.(type) {
 	case int64:
@@ -75,7 +82,91 @@ func QueryAlgoPosition() {
 	}
 
 }
+func DelUsers() {
+	client, err := GetClient()
+	if err != nil {
+		log.Fatalln("Error create new firebase app:", err)
+	}
+	ctx := context.Background()
 
+	config := parseConfig("config.json")
+	cache, err := api.NewRedisCache(time.Hour*24, config)
+	settingFields := []string{"IpConfirm", "MulSignature", "AppGeneral", "AppWallet", "AppAlgo", "MailGeneral", "MailWallet", "MailAlgo"}
+
+	stellar.SetupParams(float64(1000), true)
+	accounts := []string{"GBAKJG5LHVUR5SMHQH5XCO4MYFK3NLB7PRI3VWN73DQPV6DX5CJRIQS3", "GCZVYLRZ4BRXEWEXQBKLZKQK6GW7IHSHZGYMNAL3FDIV43RZ37NA5DWR", "GAGOZC3I5R6EUN2CAL62JXSNURDNSLCJ7MEA3UCC6QOSBR3VLUV52VK6",
+		"GBCWPT2WEMOEC5WINH4NBEIZNG6H32WFZIHMMDLDTGWQHFFNBGGZWLQF", "GCM3LTXFZUZKHZCHGC266JHGCNJPUFUN2PHW5QI65RRD5QG2UHYUWGWC", "GCLOFLUZZJOHS7IHJBYTSGUBJJRI32Y73ZIFIQKCYBI72QTKURAJNMJI"}
+	//"GALS6XF2FNME4XZGRH7PLZPXUZQHB6TZ6MS5VNIAYIYWXS3ATBVH5FWM", "GA6ZQM3WGGLEC53NKOVRXTNFSGTKW7YD4JJL2OTLWNID7HNVIBDUKPKO", "GBVQ2AHQL6A7FCNL7KM3XZWKIWU7F6FXNYIGMHS5UL5YAEZZ36SQN3VO", "GDBEAEKAJBMZDTI4JHJ52DFPXVI5OIJVMDMRGTNZKMNVZTH5D7NC5QWJ"}
+	for _, acc := range accounts {
+		err := api.MergeAccount(acc, "SATORSIMUQSQRV6H2TJRE7DO5YLES36JUHBGNQENSLXOAVBGHVI7K64B")
+		log.Println(acc, err)
+		time.Sleep(15 * time.Second)
+		//cache.DelPublicKey()
+		cache.DelNotice("", settingFields...)
+	}
+
+	// accounts := []string{"ZiWnX4Vo33DCNHp4mkxmo77CLDeWT6sPdzdLoCKkTbk", "KtLZAbvdqvZlfZzYkWE7n-z7cBGBfCvNz7GmDGmZayQ", "I5EOhOCmOJZpTFdwdoGtZJGutMHabN6cg1kj5SIWyWo",
+	// 	"NRXQZnZM5L4nEfChBU2LpuJvkto-aaL8JdMel0eIX_Y", "mx9N-98No5v63_S8dqWNmlj92nSL8lmHJ9JXeT-VEHM", "Gxs4Ol6ZMkB2q_k-X054W8jo7D2xWOiLyeEwA3YXRxA"}
+	//"oqA8g_cFJVOkNG0AjP3Ag2mlEzy1xwMy3w62nuX_uZE", "0nIWsBzoBCLfe8g7udwMWrqAcsV2xMM1PTw-ibdiWbw", "gPdMYAAnQIW2G1WpDfDoCVIOoLsyS2_eAs2thJ9nGf4",
+	//"DxO7wOx4ua2VHuXhkdI1WlmE_vLpdeymgS2j6lvwhP8", "QkEfJeZVfx-185XB1Cyn4B1rO-ImMC3M9298_6cGUZE"}
+
+	batch := client.Batch()
+	for _, acc := range accounts {
+		doc := client.Doc("users/" + acc)
+		batch.Delete(doc)
+		doc1 := client.Doc("users_meta/" + acc)
+		batch.Delete(doc1)
+	}
+	_, err = batch.Commit(ctx)
+	log.Println("delusers commit ", err)
+}
+func DelUser(pk string) {
+	//1595938305
+	client, err := GetClient()
+	if err != nil {
+		log.Fatalln("Error create new firebase app:", err)
+	}
+	ctx := context.Background()
+
+	config := parseConfig("config.json")
+	cache, err := api.NewRedisCache(time.Hour*24, config)
+	settingFields := []string{"IpConfirm", "MulSignature", "AppGeneral", "AppWallet", "AppAlgo", "MailGeneral", "MailWallet", "MailAlgo"}
+
+	if pk != "" {
+		doc, _ := client.Collection("users").Where("PublicKey", "==", pk).Documents(ctx).GetAll()
+
+		if len(doc) == 0 {
+			doc, _ = client.Collection("users").Where("Email", "==", pk).Documents(ctx).GetAll()
+		}
+		if len(doc) > 0 {
+			log.Println("remove from users", doc[0].Data()["Email"])
+			doc[0].Ref.Delete(ctx)
+
+			publicKey := doc[0].Data()["PublicKey"].(string)
+			api.MergeAccount(publicKey, "SATORSIMUQSQRV6H2TJRE7DO5YLES36JUHBGNQENSLXOAVBGHVI7K64B")
+			cache.DelNotice(doc[0].Ref.ID, settingFields...)
+			cache.DelPublicKey(doc[0].Ref.ID, publicKey)
+		}
+
+		// users_meta
+		doc, _ = client.Collection("users_meta").Where("PublicKey", "==", pk).Documents(ctx).GetAll()
+
+		if len(doc) == 0 {
+			doc, _ = client.Collection("users_meta").Where("Email", "==", pk).Documents(ctx).GetAll()
+		}
+
+		if len(doc) > 0 {
+			log.Println("remove from users_meta", doc[0].Data()["Email"])
+			doc[0].Ref.Delete(ctx)
+			publicKey := doc[0].Data()["PublicKey"].(string)
+			api.MergeAccount(publicKey, "SATORSIMUQSQRV6H2TJRE7DO5YLES36JUHBGNQENSLXOAVBGHVI7K64B")
+			cache.DelNotice(doc[0].Ref.ID, settingFields...)
+			cache.DelPublicKey(doc[0].Ref.ID, publicKey)
+		}
+		return
+	}
+
+}
 func CheckUser(uid, pk string) {
 	//1595938305
 	client, err := GetClient()
@@ -90,7 +181,11 @@ func CheckUser(uid, pk string) {
 
 	if pk != "" {
 		doc, _ := client.Collection("users").Where("PublicKey", "==", pk).Documents(ctx).GetAll()
-		log.Println(pk, doc[0].Data(), doc[0].Ref.ID)
+
+		if len(doc) == 0 {
+			doc, _ = client.Collection("users").Where("Email", "==", pk).Documents(ctx).GetAll()
+		}
+		log.Println(pk, doc[0].Ref.ID, doc[0].Data())
 		return
 	}
 
@@ -98,7 +193,7 @@ func CheckUser(uid, pk string) {
 	cnt := 0
 	for _, doc := range docs {
 		cnt++
-		log.Println("User Info:", doc.Data()["Email"], doc.Data()["PublicKey"], doc.Data()["Ip"], doc.Data()["Name"], doc.Data()["LName"], doc.Ref.ID, time.Unix(doc.Data()["CreatedAt"].(int64), 0).Format("2006-01-02 15:04:05"))
+		log.Println("User Info:", doc.Ref.ID, doc.Data()["Email"], doc.Data()["PublicKey"], doc.Data()["Ip"], doc.Data()["Name"], doc.Data()["LName"], time.Unix(doc.Data()["CreatedAt"].(int64), 0).Format("2006-01-02 15:04:05"))
 	}
 	log.Println("User Info:", cnt)
 	// for {

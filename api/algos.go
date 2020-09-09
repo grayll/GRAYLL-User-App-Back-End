@@ -22,7 +22,8 @@ import (
 	//"bitbucket.org/grayll/grayll.io-user-app-back-end/utils"
 	"bitbucket.org/grayll/grayll.io-user-app-back-end/mail"
 	"cloud.google.com/go/firestore"
-	"github.com/SherClockHolmes/webpush-go"
+
+	//"github.com/SherClockHolmes/webpush-go"
 	"github.com/gin-gonic/gin"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	stellar "github.com/huyntsgs/stellar-service"
@@ -281,7 +282,37 @@ func (h UserHandler) MakeTransaction() gin.HandlerFunc {
 		}
 	}
 }
+func (h UserHandler) PayLoan() gin.HandlerFunc {
+	return func(c *gin.Context) {
 
+		uid := c.GetString("Uid")
+		userInfo, _ := GetUserByField(h.apiContext.Store, "Uid", uid)
+		if userInfo == nil {
+			GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Invalid user name or password")
+			return
+		}
+
+		pk := userInfo["PublicKey"].(string)
+
+		_, _, err := stellar.PayLoan(pk, h.apiContext.Config.XlmLoanerSeed)
+		if err != nil {
+			log.Println("ERROR - PayLoan - unable to pay loan", uid, err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
+			return
+		}
+		log.Println("Paid loan", uid)
+		_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{"LoanPaidStatus": 2}, firestore.MergeAll)
+		if err != nil {
+			log.Printf(uid+": Set IsLoand false error %v\n", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"errCode": SUCCESS,
+		})
+	}
+}
 func (h UserHandler) XlmLoanReminder() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
@@ -328,41 +359,18 @@ func (h UserHandler) XlmLoanReminder() gin.HandlerFunc {
 				url := fmt.Sprintf("%s/dashboard/overview/(popup:xlm-loan)", h.apiContext.Config.Host)
 				// Send app and push notices
 				notice := map[string]interface{}{
-					"type":    "general",
-					"title":   title,
-					"isRead":  false,
-					"url":     url,
-					"body":    body,
-					"time":    time.Now().Unix(),
-					"vibrate": []int32{100, 50, 100},
-					"icon":    "https://app.grayll.io/favicon.ico",
-					"data": map[string]interface{}{
-						"url": h.apiContext.Config.Host + "/notifications/overview",
-					},
+					"type":   "general",
+					"title":  title,
+					"isRead": false,
+					"url":    url,
+					"body":   body,
+					"time":   time.Now().Unix(),
+					// "vibrate": []int32{100, 50, 100},
+					// "icon":    "https://app.grayll.io/favicon.ico",
+					// "data": map[string]interface{}{
+					// 	"url": h.apiContext.Config.Host + "/notifications/overview",
+					// },
 				}
-
-				//ctx := context.Background()
-				log.Println("Start push notice")
-				// go func() {
-				// 	subs, err := h.apiContext.Cache.GetUserSubs(uid)
-				// 	if err == nil && subs != "" {
-				// 		//log.Println("subs: ", subs)
-				// 		noticeData := map[string]interface{}{
-				// 			"notification": notice,
-				// 		}
-				// 		webpushSub := webpush.Subscription{}
-				// 		err = json.Unmarshal([]byte(subs), &webpushSub)
-				// 		if err != nil {
-				// 			log.Println("Unmarshal subscription from redis error: ", err)
-				// 			return
-				// 		}
-				// 		err = PushNotice(noticeData, &webpushSub)
-				// 		if err != nil {
-				// 			log.Println("PushNotice error: ", err)
-				// 			//return
-				// 		}
-				// 	}
-				// }()
 
 				// Save to firestore
 				ctx := context.Background()
@@ -383,22 +391,19 @@ func (h UserHandler) XlmLoanReminder() gin.HandlerFunc {
 
 				// check loan paid status again
 				// if not paid, schedule to send reminder
-				go func() {
-					createLoanReminder(uid, orderId+1, activatedAt)
-				}()
-				go func() {
-					mail.SaveLoanPaidInfo(userInfo["Name"].(string), userInfo["LName"].(string), userInfo["Email"].(string), "no", userInfo["CreatedAt"].(int64), orderId)
-				}()
+
+				createLoanReminder(uid, orderId+1, activatedAt)
+				mail.SaveLoanPaidInfo(userInfo["Name"].(string), userInfo["LName"].(string), userInfo["Email"].(string), "no", userInfo["CreatedAt"].(int64), orderId)
 			} else {
 				content := genReminderContent(orderId)
 				title := "GRAYLL | Account Closure Reminder"
 				mail.SendLoanReminder(userInfo["Email"].(string), userInfo["Name"].(string), title, h.apiContext.Config.Host, content, false)
 
 				// merge account
-				err := stellar.MergeAccount(userInfo["PublicKey"].(string), h.apiContext.Config.XlmLoanerAddress,
-					h.apiContext.Config.XlmLoanerSeed, h.apiContext.Config.IssuerAddress)
+				err := MergeAccount(userInfo["PublicKey"].(string), h.apiContext.Config.XlmLoanerSeed)
+
 				if err != nil {
-					log.Println("Can not MergeAccount error:", err)
+					log.Println("ERROR unable MergeAccount error:", uid, userInfo["PublicKey"].(string), err)
 				}
 
 				// move user data to backup
@@ -421,46 +426,46 @@ func (h UserHandler) XlmLoanReminder() gin.HandlerFunc {
 				}
 
 				// app notice
-				body := ""
-				for _, con := range content {
-					body = body + con
-				}
-				// Send app and push notices
-				notice := map[string]interface{}{
-					"type":    "general",
-					"title":   title,
-					"isRead":  false,
-					"body":    body,
-					"time":    time.Now().Unix(),
-					"vibrate": []int32{100, 50, 100},
-					"icon":    "https://app.grayll.io/favicon.ico",
-					"data": map[string]interface{}{
-						"url": h.apiContext.Config.Host + "/notifications/overview",
-					},
-				}
+				// body := ""
+				// for _, con := range content {
+				// 	body = body + con
+				// }
+				// // Send app and push notices
+				// notice := map[string]interface{}{
+				// 	"type":    "general",
+				// 	"title":   title,
+				// 	"isRead":  false,
+				// 	"body":    body,
+				// 	"time":    time.Now().Unix(),
+				// 	"vibrate": []int32{100, 50, 100},
+				// 	"icon":    "https://app.grayll.io/favicon.ico",
+				// 	"data": map[string]interface{}{
+				// 		"url": h.apiContext.Config.Host + "/notifications/overview",
+				// 	},
+				// }
 
 				//ctx := context.Background()
-				log.Println("Start push notice")
-				go func() {
-					subs, err := h.apiContext.Cache.GetUserSubs(uid)
-					if err == nil && subs != "" {
-						//log.Println("subs: ", subs)
-						noticeData := map[string]interface{}{
-							"notification": notice,
-						}
-						webpushSub := webpush.Subscription{}
-						err = json.Unmarshal([]byte(subs), &webpushSub)
-						if err != nil {
-							log.Println("Unmarshal subscription from redis error: ", err)
-							return
-						}
-						err = PushNotice(noticeData, &webpushSub)
-						if err != nil {
-							log.Println("PushNotice error: ", err)
-							//return
-						}
-					}
-				}()
+				// log.Println("Start push notice")
+				// go func() {
+				// 	subs, err := h.apiContext.Cache.GetUserSubs(uid)
+				// 	if err == nil && subs != "" {
+				// 		//log.Println("subs: ", subs)
+				// 		noticeData := map[string]interface{}{
+				// 			"notification": notice,
+				// 		}
+				// 		webpushSub := webpush.Subscription{}
+				// 		err = json.Unmarshal([]byte(subs), &webpushSub)
+				// 		if err != nil {
+				// 			log.Println("Unmarshal subscription from redis error: ", err)
+				// 			return
+				// 		}
+				// 		err = PushNotice(noticeData, &webpushSub)
+				// 		if err != nil {
+				// 			log.Println("PushNotice error: ", err)
+				// 			//return
+				// 		}
+				// 	}
+				// }()
 			}
 		} else {
 			go func() {
@@ -688,8 +693,8 @@ func (h UserHandler) ReportData() gin.HandlerFunc {
 			xlmusd = prices.Data()["xlmusd"].(float64)
 			grxusd = prices.Data()["grxusd"].(float64)
 		}
-
-		contents := GenDataReportMail(currReportSetting, doc.Data(), xlmusd, grxusd, int64(setting["Time"].(float64)))
+		timeLocal := time.Now().Unix()
+		contents := GenDataReportMail(currReportSetting, doc.Data(), xlmusd, grxusd, timeLocal)
 
 		title := `GRAYLL | Data Summary Report`
 		err = mail.SendNoticeMail(userData["Email"].(string), userData["Name"].(string), title, contents)
@@ -709,8 +714,11 @@ func (h UserHandler) ReportData() gin.HandlerFunc {
 			"title":  title,
 			"body":   content,
 			"isRead": false,
-			"time":   setting["Time"].(float64),
+			"time":   timeLocal,
 		}
+
+		// contents := make([]string, 0)
+		// contents = append(contents, []string{timeLocal.Format(`15:04 | 02-01-2006`)
 		docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
 		_, err = docRef.Set(ctx, notice)
 		_, err = h.apiContext.Store.Doc("users_meta/"+uid).Update(ctx, []firestore.Update{

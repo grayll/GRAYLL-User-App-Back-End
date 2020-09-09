@@ -1,10 +1,16 @@
 module bitbucket.org/grayll/grayll.io-user-app-back-end
 
-go 1.12
+go 1.13
 
 //replace github.com/huyntsgs/stellar-service v0.0.0-20200511152020-7a130845cf0d => /home/bc/go/src/github.com/huyntsgs/stellar-service
 
 //replace github.com/huyntsgs/cors v1.3.2-0.20200524025249-9865eda97561 => /home/bc/go/src/github.com/huyntsgs/cors
+
+
+
+replace (
+	bitbucket.org/ww/goautoneg v0.0.0-20120707110453-75cd24fc2f2c => /home/bc/go/src/bitbucket.org/huykbc/goautoneg
+)
 
 require (
 	cloud.google.com/go v0.51.0
@@ -32,7 +38,9 @@ require (
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/huyntsgs/cors v1.3.2-0.20200526010755-d0b894e7ee83
 	github.com/huyntsgs/hermes v0.0.0-20191119075450-4a9f1c2a64a0
-	github.com/huyntsgs/stellar-service v0.0.0-20200511152020-7a130845cf0d
+	github.com/huyntsgs/stellar-service v0.0.0-20200811102404-492829a6952c
+
+	//github.com/huyntsgs/stellar-service v0.0.0-20200511152020-7a130845cf0d
 
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/jaytaylor/html2text v0.0.0-20190408195923-01ec452cbe43 // indirect
@@ -45,8 +53,6 @@ require (
 	github.com/orcaman/concurrent-map v0.0.0-20190826125027-8c72a8bb44f6
 	github.com/sendgrid/rest v2.4.1+incompatible // indirect
 	github.com/sendgrid/sendgrid-go v3.5.0+incompatible
-	//github.com/stellar/go v0.0.0-20200428193902-20797e3e2f1a
-
 	github.com/stellar/go v0.0.0-20190920224012-d72ea298f1e9
 	github.com/ulule/limiter/v3 v3.5.0
 	go.uber.org/goleak v0.10.0 // indirect

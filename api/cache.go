@@ -31,9 +31,24 @@ const (
 	// MailAlgo    = "mail-algo"
 )
 
+// func NewRedisCache(ttl time.Duration, config *Config) (*RedisCache, error) {
+// 	// redisHost := os.Getenv("REDISHOST")
+// 	// redisPort := os.Getenv("REDISPORT")
+// 	cache := new(RedisCache)
+// 	cache.Client = redis.NewClient(&redis.Options{
+// 		Addr:         fmt.Sprintf("%s:%d", config.RedisHost, config.RedisPort),
+// 		Password:     config.RedisPass,
+// 		ReadTimeout:  time.Minute,
+// 		MinIdleConns: 1,
+// 	})
+
+// 	pong, err := cache.Client.Ping().Result()
+// 	fmt.Println("result:", pong, err)
+// 	cache.ttl = ttl
+// 	return cache, err
+// }
 func NewRedisCache(ttl time.Duration, config *Config) (*RedisCache, error) {
-	// redisHost := os.Getenv("REDISHOST")
-	// redisPort := os.Getenv("REDISPORT")
+
 	cache := new(RedisCache)
 	cache.Client = redis.NewClient(&redis.Options{
 		Addr:         fmt.Sprintf("%s:%d", config.RedisHost, config.RedisPort),
@@ -43,13 +58,34 @@ func NewRedisCache(ttl time.Duration, config *Config) (*RedisCache, error) {
 	})
 
 	pong, err := cache.Client.Ping().Result()
-	fmt.Println("result:", pong, err)
+	fmt.Println("err:", pong, err)
+	cnt := 0
+	if err != nil {
+		for {
+			cnt++
+			time.Sleep(1 * time.Second)
+			cache.Client = redis.NewClient(&redis.Options{
+				Addr:         fmt.Sprintf("%s:%d", config.RedisHost, config.RedisPort),
+				Password:     config.RedisPass,
+				ReadTimeout:  time.Minute,
+				MinIdleConns: 1,
+			})
+
+			pong, err = cache.Client.Ping().Result()
+			if err == nil {
+				break
+			}
+			if cnt > 60 {
+				log.Println("Can not connect to redis after retry", cnt, err)
+				break
+			}
+
+		}
+	}
 	cache.ttl = ttl
 	return cache, err
 }
-func NewRedisCacheHost(ttl time.Duration, host, pass string, port int) *RedisCache {
-	// redisHost := os.Getenv("REDISHOST")
-	// redisPort := os.Getenv("REDISPORT")
+func NewRedisCacheHost(ttl time.Duration, host, pass string, port int) (*RedisCache, error) {
 	cache := new(RedisCache)
 	cache.Client = redis.NewClient(&redis.Options{
 		Addr:         fmt.Sprintf("%s:%d", host, port),
@@ -60,8 +96,31 @@ func NewRedisCacheHost(ttl time.Duration, host, pass string, port int) *RedisCac
 
 	pong, err := cache.Client.Ping().Result()
 	fmt.Println("err:", pong, err)
+	cnt := 0
+	if err != nil {
+		for {
+			cnt++
+			time.Sleep(1 * time.Second)
+			cache.Client = redis.NewClient(&redis.Options{
+				Addr:         fmt.Sprintf("%s:%d", host, port),
+				Password:     pass,
+				ReadTimeout:  time.Minute,
+				MinIdleConns: 1,
+			})
+
+			pong, err = cache.Client.Ping().Result()
+			if err == nil {
+				break
+			}
+			if cnt > 60 {
+				log.Println("Can not connect to redis after retry", cnt, err)
+				break
+			}
+
+		}
+	}
 	cache.ttl = ttl
-	return cache
+	return cache, err
 }
 
 func (cache *RedisCache) SetUserSubs(uid, subs string) (bool, error) {
@@ -77,6 +136,10 @@ func (cache *RedisCache) SetPublicKey(uid, publicKey string) (bool, error) {
 	cache.Client.HSet(publicKey, UIDC, uid)
 	return cache.Client.HSet(uid, PublicKey, publicKey).Result()
 }
+func (cache *RedisCache) DelPublicKey(uid, publicKey string) (int64, error) {
+	cache.Client.HDel(publicKey, UIDC, uid)
+	return cache.Client.HDel(uid, PublicKey).Result()
+}
 func (cache *RedisCache) GetUidFromPublicKey(publicKey string) (string, error) {
 	return cache.Client.HGet(publicKey, UIDC).Result()
 }
@@ -87,6 +150,9 @@ func (cache *RedisCache) GetPublicKeyFromUid(Uid string) (string, error) {
 // Notice cache
 func (cache *RedisCache) SetNotice(uid, cacheType string, value bool) (bool, error) {
 	return cache.Client.HSet(uid+UserInfo, cacheType, value).Result()
+}
+func (cache *RedisCache) DelNotice(uid string, cacheType ...string) (int64, error) {
+	return cache.Client.HDel(uid+UserInfo, cacheType...).Result()
 }
 func (cache *RedisCache) SetNotices(uid string, pairs ...interface{}) (string, error) {
 	return cache.Client.MSet(uid+UserInfo, pairs).Result()
@@ -330,6 +396,7 @@ func (cache *RedisCache) SetRecapchaToken(emailAction, recapchaToken string) {
 func (cache *RedisCache) CheckRecapchaToken(emailAction string) bool {
 	_, err := cache.Client.Get(emailAction + "-recapcha").Result()
 	if err != nil || err == redis.Nil {
+		log.Println("ERROR - CheckRecapchaToken - error value ", err)
 		return false
 	}
 	return true

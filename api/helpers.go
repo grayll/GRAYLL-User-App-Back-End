@@ -22,9 +22,11 @@ import (
 	"github.com/NeverBounce/NeverBounceApi-Go"
 	"github.com/NeverBounce/NeverBounceApi-Go/models"
 	"github.com/gin-gonic/gin"
+	stellar "github.com/huyntsgs/stellar-service"
 	"github.com/jinzhu/now"
 	"github.com/stellar/go/clients/horizonclient"
 	"github.com/stellar/go/protocols/horizon/operations"
+	build "github.com/stellar/go/txnbuild"
 )
 
 func VerifyEmailNeverBounce(neverBounceApiKey, email string) error {
@@ -177,6 +179,10 @@ type LedgerPayment struct {
 	Embed Embedded `json:"_embedded"`
 }
 
+func MergeAccount(mergedAccount, loanSeed string) error {
+	_, _, err := stellar.MergeAccount(mergedAccount, loanSeed, build.CreditAsset{Code: "GRX", Issuer: "GAQQZMUNB7UCL2SXHU6H7RZVNFL6PI4YXLPJNBXMOZXB2LOQ7LODH333"})
+	return err
+}
 func ParseLedgerData(url string) (*LedgerPayment, error) {
 	ledger := LedgerPayment{}
 
