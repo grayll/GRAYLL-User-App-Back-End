@@ -1,0 +1,7 @@
+/streaming1
+/log/
+/streaming
+*.json
+/copyBinary.sh
+/deployAgent.sh
+/payment

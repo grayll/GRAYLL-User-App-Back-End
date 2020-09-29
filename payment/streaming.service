@@ -1,0 +1,8 @@
+[Unit]
+Description=Streaming
+
+[Service]
+ExecStart=/home/bc/go/src/bitbucket.org/grayll/grayll.io-user-app-back-end/streaming/streaming -mainnet=true
+
+[Install]
+WantedBy=multi-user.target

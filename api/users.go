@@ -627,13 +627,11 @@ func (h UserHandler) Register() gin.HandlerFunc {
 		referralUGeneral := 0
 		referralSendGridId := ""
 		if input.Referer != "" {
-
 			uidb, err := base64.StdEncoding.DecodeString(input.Referer)
 			if err != nil {
-				log.Println("[ERROR] - Register - can not decode referer:", err)
+				log.Println("[ERROR] - Register - can not decode referer:", input.Email, err)
 			} else {
 				refererUid = string(uidb)
-
 				referer, err := h.apiContext.Store.Doc("users/" + refererUid).Get(ctx)
 				if err != nil {
 					log.Println("[ERROR] - get referer uid:", err)
@@ -800,7 +798,7 @@ func (h UserHandler) Register() gin.HandlerFunc {
 
 		_, err = batch.Commit(ctx)
 		if err != nil {
-			log.Println("[ERROR] - Register - Commit:", err)
+			log.Println("[ERROR] - Register - Commit:", input.Email, err)
 			GinRespond(c, http.StatusInternalServerError, INTERNAL_ERROR, "Can not register right now")
 			return
 		}
@@ -1303,11 +1301,16 @@ func (h UserHandler) ChangeEmail() gin.HandlerFunc {
 			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Input data is invalid")
 			return
 		}
-		log.Println("Login; user: ", changeMail)
+		// Check exist email
+		userInfo, _ := GetUserByField(h.apiContext.Store, "Email", changeMail.NewEmail)
+		if userInfo != nil {
+			GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Email existed")
+			return
+		}
 
 		uid := c.GetString("Uid")
 
-		userInfo, _ := GetUserByField(h.apiContext.Store, "Uid", uid)
+		userInfo, _ = GetUserByField(h.apiContext.Store, "Uid", uid)
 		if userInfo == nil {
 			GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Invalid user name or password")
 			return
@@ -1404,10 +1407,15 @@ func (h UserHandler) ValidateCode() gin.HandlerFunc {
 			items := strings.Split(itemData, "?")
 			if len(items) == 2 {
 				user, uid := GetUserByField(h.apiContext.Store, "Email", items[0])
-				_, err := h.apiContext.Store.Doc("users/"+uid).Set(ctx, map[string]interface{}{"IsVerified": false, "Email": items[1]}, firestore.MergeAll)
+				_, err := h.apiContext.Store.Doc("users/"+uid).Set(ctx, map[string]interface{}{"IsVerified": false, "Email": items[1], "Federation": items[1] + "*grayll.io"}, firestore.MergeAll)
 				if err != nil {
-					GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Error set IsVerified false")
-					return
+					h.apiContext.Store, _ = ReconnectFireStore("grayll-app-f3f3f3", 60)
+					_, err = h.apiContext.Store.Doc("users/"+uid).Set(ctx, map[string]interface{}{"IsVerified": false, "Email": items[1], "Federation": items[1] + "*grayll.io"}, firestore.MergeAll)
+					if err != nil {
+						log.Println("ERROR - changeemail - unable change email", items, err)
+						GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Error set IsVerified false")
+						return
+					}
 				}
 				encodeStr := utils.EncryptItem(h.apiContext.Jwt.PublicKey, items[1])
 				if encodeStr == "" {
@@ -2334,25 +2342,30 @@ func (h UserHandler) VerifyToken() gin.HandlerFunc {
 		}
 
 		uid := c.GetString(UID)
-		fmt.Printf("uid %v\n", uid)
+		fmt.Printf("verifytoken- uid %v\n", uid)
 		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
 		if userInfo == nil {
 			//GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "User does not exist.")
-			output = Output{Valid: false, ErrCode: INVALID_UNAME_PASSWORD, Message: "User does not exist."}
-			c.JSON(http.StatusOK, output)
-			return
+			h.apiContext.Store, err = ReconnectFireStore("grayll-app-f3f3f3", 60)
+			userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+			if userInfo == nil {
+				log.Println("ERROR unable find user with id:", uid)
+				output = Output{Valid: false, ErrCode: INVALID_UNAME_PASSWORD, Message: "User does not exist."}
+				c.JSON(http.StatusOK, output)
+				return
+			}
 		}
 		tfa, ok := userInfo["Tfa"].(map[string]interface{})
 		if tfa == nil || !ok {
-			fmt.Println("Tfa is nil:", err)
+			fmt.Println("verifytoken - Tfa is nil:", err)
 			output = Output{Valid: false, ErrCode: INTERNAL_ERROR, Message: "Tfa is not enabled."}
 			c.JSON(http.StatusOK, output)
 			return
 		}
 
-		fmt.Printf("input %v\n", input)
+		fmt.Println("verifytoken - input parsed", input)
 		otpc := &dgoogauth.OTPConfig{
-			//Secret:      input.Secret,
+
 			Secret:      tfa["Secret"].(string),
 			WindowSize:  3,
 			HotpCounter: 0,
@@ -2395,6 +2408,7 @@ func (h UserHandler) VerifyToken() gin.HandlerFunc {
 				return
 			}
 		}
+		fmt.Println("verifytoken SUCCESS")
 		output = Output{Valid: true, ErrCode: SUCCESS}
 		c.JSON(http.StatusOK, output)
 	}
@@ -2686,10 +2700,10 @@ func (h UserHandler) Federation() gin.HandlerFunc {
 func (h UserHandler) Invite() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		input := Contact{}
-
+		uid := c.GetString(UID)
 		err := c.BindJSON(&input)
 		if err != nil {
-			log.Println("[ERROR]- Invite - can not bind json:", err)
+			log.Println("[ERROR]- Invite - can not bind json:", uid, err)
 			GinRespond(c, http.StatusOK, INVALID_PARAMS, "")
 			return
 		}
@@ -2704,7 +2718,7 @@ func (h UserHandler) Invite() gin.HandlerFunc {
 		//check whether email already registered with Grayll
 		_, referralUid := GetUserByField(h.apiContext.Store, "Email", input.Email)
 		if referralUid != "" {
-			log.Println("[ERROR]- Invite - email already used:", err)
+			log.Println("[ERROR]- Invite - email already used:", uid, input.Email, err)
 			GinRespond(c, http.StatusOK, EMAIL_IN_USED, "email in used")
 			return
 		}
@@ -2712,14 +2726,18 @@ func (h UserHandler) Invite() gin.HandlerFunc {
 		batch := h.apiContext.Store.Batch()
 		ctx := context.Background()
 
-		uid := c.GetString(UID)
 		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+		if userInfo == nil {
+			log.Println("[ERROR]- Invite - can not save invite contact:", uid, err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "")
+			return
+		}
 
 		// save to pending invite sendgrid list
 		currentTime := time.Now().Unix()
 		sendgridId, err := mail.SaveRegistrationInfo(input.Name, input.LName, input.Email, currentTime, 12592770)
 
-		log.Println("sendgridId:", sendgridId)
+		log.Println("sendgridId:", uid, sendgridId)
 
 		doc := h.apiContext.Store.Collection("referrals/" + uid + "/invite").NewDoc()
 		invited := map[string]interface{}{
@@ -2739,18 +2757,11 @@ func (h UserHandler) Invite() gin.HandlerFunc {
 		title, url, contents := GenInvite(uid, userInfo["Name"].(string), userInfo["LName"].(string), doc.ID)
 		err = mail.SendMailRegistrationInvite(input.Email, input.Name, title, url, contents)
 		if err != nil {
-			log.Println("[ERROR]- Invite - can not send mail invite:", err)
+			log.Println("[ERROR]- Invite - can not send mail invitee:", uid, err)
 			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
 			return
 		}
 		batch.Set(doc, invited)
-
-		//Send notice for sender
-		if userInfo == nil {
-			log.Println("[ERROR]- Invite - can not save invite contact:", err)
-			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "")
-			return
-		}
 
 		title, content, contents := GenInviteSender(input.Name, input.LName)
 		mailGeneral, err := h.apiContext.Cache.GetNotice(uid, "MailGeneral")
@@ -2761,7 +2772,7 @@ func (h UserHandler) Invite() gin.HandlerFunc {
 			if mailGeneral == "1" {
 				err = mail.SendNoticeMail(userInfo["Email"].(string), userInfo["Name"].(string), title, contents)
 				if err != nil {
-					log.Println("[ERROR]- Invite - can not send mail invite:", err)
+					log.Println("[ERROR]- Invite - can not send mail inviter:", uid, err)
 					GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
 					return
 				}
@@ -2784,10 +2795,10 @@ func (h UserHandler) Invite() gin.HandlerFunc {
 		})
 
 		metricDoc, err := h.apiContext.Store.Doc("referrals/" + uid + "/metrics/referral").Get(ctx)
-		//log.Println("metricDoc, err:", err)
+
 		if err != nil && grpc.Code(err) == codes.NotFound {
 			// already exist
-			log.Println("!existed referral")
+			log.Println("!existed referral", uid)
 			metricDoc := h.apiContext.Store.Doc("referrals/" + uid + "/metrics/referral")
 			batch.Set(metricDoc, map[string]interface{}{
 				"confirmed":    0,
@@ -2797,6 +2808,7 @@ func (h UserHandler) Invite() gin.HandlerFunc {
 			})
 
 		} else {
+			log.Println("existed referral", uid)
 			batch.Update(metricDoc.Ref, []firestore.Update{
 				{Path: "pending", Value: firestore.Increment(1)},
 			})
@@ -2805,15 +2817,82 @@ func (h UserHandler) Invite() gin.HandlerFunc {
 		_, err = batch.Commit(ctx)
 
 		if err != nil {
-			log.Println("[ERROR]- Invite - can not commit batch:", err)
+			log.Println("[ERROR]- Invite - can not commit batch:", uid, input.Email, err)
 			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "")
 			return
 		}
+		log.Println("Invite - successfully", uid, err)
 		GinRespond(c, http.StatusOK, SUCCESS, "")
 
 	}
 }
+func (h UserHandler) ReportClosing() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Get docid from url
+		algorithm := c.Param("algorithm")
 
+		var input struct {
+			GrayllTxId       string  `json:"grayllTxId"`
+			Algorithm        string  `json:"algorithm"`
+			GrxUsd           float64 `json:"grxUsd"`
+			PositionValue    float64 `json:"positionValue"`
+			PositionValueGRX float64 `json:"positionValueGRX"`
+			UserId           string  `json:"userId"`
+			Name             string  `json:"name"`
+			Lname            string  `json:"lname"`
+			PublicKey        string  `json:"publicKey"`
+		}
+		uid := c.GetString(UID)
+		err := c.BindJSON(&input)
+		if err != nil {
+			log.Println("[ERROR]-ReportClosing - unable bind json ", uid, err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
+			return
+		}
+
+		content := []string{""}
+		if input.GrayllTxId == "" {
+			content = []string{
+				time.Now().Format(`15:04 | 02-01-2006`),
+
+				fmt.Sprintf(`%s %s is attempting to close all %s algo position outside of the current GRX market volatility parameters.`, input.Name, input.Lname, algorithm),
+
+				fmt.Sprintf(`GRX Rate | $ %7f`, input.GrxUsd),
+
+				fmt.Sprintf(`User Account: %s`, input.PublicKey),
+
+				fmt.Sprintf(`GRAYLL User ID: %s`, input.UserId),
+			}
+		} else {
+			content = []string{
+				time.Now().Format(`15:04 | 02-01-2006`),
+
+				fmt.Sprintf(`%s %s is attempting to close an algo position outside of the current GRX market volatility parameters.`, input.Name, input.Lname),
+
+				fmt.Sprintf(`GRX Rate | $ %7f`, input.GrxUsd),
+
+				fmt.Sprintf(`USD Algo Position Value | $ %7f`, input.PositionValue),
+
+				fmt.Sprintf(`GRX Algo Position Value | %7f GRX `, input.PositionValueGRX),
+
+				fmt.Sprintf(`%s | GRAYLL | Transaction ID | %s `, input.Algorithm, input.GrayllTxId),
+
+				fmt.Sprintf(`User Account: %s`, input.PublicKey),
+
+				fmt.Sprintf(`GRAYLL User ID: %s`, input.UserId),
+			}
+		}
+
+		err = mail.SendNoticeMail("grayll@grayll.io", "GRAYLL", "GRAYLL | GRX Market Volatility | Algo System Intervention", content)
+		if err != nil {
+			log.Println("[ERROR]- Invite - can not send mail invite:", err)
+			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
+			return
+		}
+
+		GinRespond(c, http.StatusOK, SUCCESS, "")
+	}
+}
 func (h UserHandler) RemveReferral() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get docid from url
@@ -3304,6 +3383,7 @@ func (h UserHandler) TxVerify() gin.HandlerFunc {
 				log.Println("grxXlmPrice, grxAmount, xlmAmount: ", grxPrice, grxAmount, xlmAmount)
 
 				if grxPrice < h.apiContext.Config.SellingPrice {
+					log.Println("txverify - price is lower than setting", grxPrice, h.apiContext.Config.SellingPrice)
 					GinRespond(c, http.StatusOK, PRICE_LOWER_LIMIT, "")
 					return
 				}

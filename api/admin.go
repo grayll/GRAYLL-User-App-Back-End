@@ -49,6 +49,7 @@ func (h UserHandler) SetStatus() gin.HandlerFunc {
 			GrzNewPosition    bool   `json:"grzNewPosition"`
 			SystemStatus      bool   `json:"systemStatus"`
 			SystemNewPosition bool   `json:"systemNewPosition"`
+			PauseClosing      bool   `json:"pauseClosing"`
 		}
 
 		err := c.BindJSON(&input)
@@ -62,6 +63,8 @@ func (h UserHandler) SetStatus() gin.HandlerFunc {
 		value := true
 		fieldName1 := ""
 		value1 := true
+		fieldName2 := ""
+		value2 := false
 		if input.UserId == "" {
 			switch input.StatusId {
 			case 1:
@@ -95,14 +98,27 @@ func (h UserHandler) SetStatus() gin.HandlerFunc {
 				value = input.SystemStatus
 				fieldName1 = "systemNewPosition"
 				value1 = input.SystemNewPosition
+				fieldName2 = "pauseClosing"
+				value2 = input.PauseClosing
+				if input.PauseClosing {
+					h.apiContext.Cache.Client.HSet("pauseClosing", "pauseClosing", 1)
+				} else {
+					h.apiContext.Cache.Client.HSet("pauseClosing", "pauseClosing", 0)
+				}
 			}
 			data := map[string]interface{}{
 				fieldName: value,
 			}
-			if fieldName1 != "" {
+			if fieldName1 != "" && input.StatusId != 7 {
 				data = map[string]interface{}{
 					fieldName:  value,
 					fieldName1: value1,
+				}
+			} else if fieldName1 != "" && input.StatusId == 7 {
+				data = map[string]interface{}{
+					fieldName:  value,
+					fieldName1: value1,
+					fieldName2: value2,
 				}
 			}
 			log.Println("data", data)

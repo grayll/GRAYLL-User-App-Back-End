@@ -65,13 +65,13 @@ func GetFsClient1(isLocal bool) (*firestore.Client, error) {
 }
 
 // GetFsClient gets firestore database instance of grayll user app
-func GetFsClient(isLocal bool, configPath, configFile string) (*firestore.Client, error) {
+func GetFsClient(isLocal bool, configPath string) (*firestore.Client, error) {
 	var client *firestore.Client
 	var err error
 
 	ctx := context.Background()
 	if isLocal {
-		opt := option.WithCredentialsFile(configPath + "/" + configFile)
+		opt := option.WithCredentialsFile(configPath + "/grayll-app-f3f3f3-firebase-adminsdk-vhclm-e074da6170.json")
 		app, err := firebase.NewApp(ctx, nil, opt)
 		if err != nil {
 			log.Fatalln("Error create new gray user app:", err)
@@ -89,8 +89,20 @@ func GetFsClient(isLocal bool, configPath, configFile string) (*firestore.Client
 		if err != nil {
 			log.Fatalln(err)
 		}
-
 	}
+	return client, err
+}
+func GetGryClient(configPath string) (*firestore.Client, error) {
+	var client *firestore.Client
+	var err error
+
+	ctx := context.Background()
+	opt := option.WithCredentialsFile(configPath)
+	app, err := firebase.NewApp(ctx, nil, opt)
+	if err != nil {
+		log.Fatalln("Error create new gray user app:", err)
+	}
+	client, err = app.Firestore(ctx)
 	return client, err
 }
 

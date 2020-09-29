@@ -281,6 +281,8 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 		v1.POST("/users/removeReferral/:referralId", userHandler.RemveReferral())
 		v1.POST("/users/removeReferer/:refererId", userHandler.RemveReferer())
 		v1.POST("/users/editreferral", userHandler.EditReferral())
+
+		v1.POST("/users/reportclosing/:algorithm", userHandler.ReportClosing())
 	}
 	return router
 }
