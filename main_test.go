@@ -34,7 +34,8 @@ const (
 func TestVerify(t *testing.T) {
 	//QueryAlgoPosition()
 	//checkExistUserMeta()
-	CheckUser("", "sanchezbuenoelromeral@gmail.com")
+	//CheckUser("", "sanchezbuenoelromeral@gmail.com")
+	RecoverUser("3SBdaplZfV55teUdEQXEHVxd3z28OQ0AKd3OwE0DZBg")
 	//DelUsers()
 	//DelUser("andsoft88@gmail.com")
 	//MergeAccount("GC5TQRTXZHXIOSKI4SXRVVIRALFZQ6SV2D7WCFUGP2M2TRN3UFRKCOD2")
@@ -165,6 +166,19 @@ func DelUser(pk string) {
 		}
 		return
 	}
+
+}
+func RecoverUser(uid string) {
+	//1595938305
+	client, err := GetClient()
+	if err != nil {
+		log.Fatalln("Error create new firebase app:", err)
+	}
+	ctx := context.Background()
+
+	exportedUser, err := client.Doc("accounts_exported/" + uid).Get(ctx)
+
+	client.Collection("users").Doc(uid).Set(ctx, exportedUser.Data())
 
 }
 func CheckUser(uid, pk string) {

@@ -10,7 +10,7 @@ replace bitbucket.org/ww/goautoneg v0.0.0-20120707110453-75cd24fc2f2c => /home/b
 
 require (
 	//cloud.google.com/go v0.66.0
-	cloud.google.com/go v0.51.0
+	cloud.google.com/go v0.66.0
 
 	cloud.google.com/go/firestore v1.3.0
 	cloud.google.com/go/pubsub v1.6.2

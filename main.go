@@ -283,6 +283,7 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 		v1.POST("/users/editreferral", userHandler.EditReferral())
 
 		v1.POST("/users/reportclosing/:algorithm", userHandler.ReportClosing())
+		v1.POST("/users/updateHomeDomain", userHandler.UpdateHomeDomain())
 	}
 	return router
 }

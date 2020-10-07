@@ -6,15 +6,14 @@ import (
 	"log"
 	"net/http"
 	"strings"
-
-	"bitbucket.org/grayll/grayll.io-user-app-back-end/api"
+	//	"bitbucket.org/grayll/grayll.io-user-app-back-end/api"
 )
 
-func parseConfig(path string) *api.Config {
+func parseConfig(path string) *Config {
 
 	var raw []byte
 	var err error
-	config := new(api.Config)
+	config := new(Config)
 	if path == "" {
 		path = "config.json"
 	}

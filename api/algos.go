@@ -313,6 +313,36 @@ func (h UserHandler) PayLoan() gin.HandlerFunc {
 		})
 	}
 }
+
+func (h UserHandler) UpdateHomeDomain() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		uid := c.GetString("Uid")
+		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+
+		// move user data to backup
+		_, err := h.apiContext.Store.Doc("accounts_exported/"+uid).Set(context.Background(), userInfo)
+		if err != nil {
+			log.Println("Can not set account closure:", err)
+		} else {
+			_, err := h.apiContext.Store.Doc("users/" + uid).Delete(context.Background())
+			if err != nil {
+				log.Println("Can not delete account:", err)
+			}
+		}
+
+		// Remove form xlm loan sendgrid list
+		if receiptId, ok := userInfo["SendGridId"]; ok {
+			mail.RemoveRecipientFromList(receiptId.(string), 10196670)
+			mail.RemoveRecipientFromList(receiptId.(string), 10761027)
+			// Add to account closure list
+			mail.AddRecipienttoList(receiptId.(string), 12586061)
+		}
+
+		c.Status(200)
+	}
+}
+
 func (h UserHandler) XlmLoanReminder() gin.HandlerFunc {
 	return func(c *gin.Context) {
 

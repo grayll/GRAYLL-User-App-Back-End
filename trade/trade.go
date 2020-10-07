@@ -36,6 +36,42 @@ const (
 	ADMIN_SETTING = "admin/8efngc9fgm12nbcxeq"
 )
 
+type Config struct {
+	ProjectId         string `json:"projectId"`
+	DataReportQueueId string `json:"queueId"`
+
+	LocationId string `json:"locationId"`
+
+	DataReportUrl string `json:"dataReportUrl"`
+
+	ServiceAccountEmail string `json:"serviceAccountEmail"`
+
+	IsMainNet         bool    `json:"isMainNet"`
+	AssetCode         string  `json:"assetCode"`
+	IssuerAddress     string  `json:"issuerAddress"`
+	XlmLoanerSeed     string  `json:"xlmLoanerSeed"`
+	XlmLoanerAddress  string  `json:"xlmLoanerAddress"`
+	RedisHost         string  `json:"redisHost"`
+	RedisPort         int     `json:"redisPort"`
+	RedisPass         string  `json:"redisPass"`
+	HorizonUrl        string  `json:"horizonUrl"`
+	Host              string  `json:"host"`
+	Numberify         string  `json:"numberify"`
+	SuperAdminAddress string  `json:"superAdminAddress"`
+	SuperAdminSeed    string  `json:"superAdminSeed"`
+	SellingPrice      float64 `json:"sellingPrice"`
+	SellingPercent    int     `json:"sellingPercent"`
+	NeverBounceApiKey string  `json:"neverBounceApiKey"`
+
+	PauseTimeFrame    int64 `json:"pauseTimeFrame"`    // time frame 15 minutes
+	PausePeriod       int64 `json:"pausePeriod"`       // will pause closing 120 minutes
+	PauseTimeFrameExt int64 `json:"pauseTimeFrameExt"` // If in 10 minutes from 120 minutes pause increase than PauseIncPerExt
+	PausePeriodExt    int64 `json:"pausePeriodExt"`    // Will pause more 30 minutes
+
+	PauseIncPer    float64 `json:"pauseIncPer"`    // increase 15 %
+	PauseIncPerExt float64 `json:"pauseIncPerExt"` // Extend 10%
+}
+
 func main() {
 
 	var xlmusd, xlmgrx, grxusd float64
@@ -48,7 +84,7 @@ func main() {
 	isMainNet := flag.Bool("mainnet", false, "run on mainnet or testnet")
 	isProd := flag.Bool("prod", false, "run on prod or local")
 	flag.Parse()
-	var config *api.Config
+	var config *Config
 	configPath := ""
 	if *isProd {
 		configPath = "/home/huykbc/"
@@ -71,7 +107,7 @@ func main() {
 		log.Fatalln("main: GetFsClient error: ", err)
 	}
 
-	log.Println("config.HorizonUrl:", config.HorizonUrl)
+	log.Println("config:", config)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -300,8 +336,8 @@ func main() {
 			log.Println("uidBaseAcc:", uidBaseAcc)
 			if err == nil && uidBaseAcc != "" {
 
-				tx, err := stellar.HorizonClient.TransactionDetail(trade)
-				log.Println("Memo payment:", tx.Memo)
+				// tx, err := stellar.HorizonClient.TransactionDetail(trade)
+				// log.Println("Memo payment:", tx.Memo)
 
 				data := map[string]interface{}{
 					"time":     time,
@@ -412,15 +448,15 @@ func main() {
 				//log.Println("tick. xlmgrx", xlmgrx, previousPrice)
 				if xlmgrx != previousPrice {
 					docs, err := store.Collection("asset_algo_values/grxxlm/frame_01m").
-						Where("UNIX_timestamp", ">=", time.Now().Unix()-15*60).OrderBy("UNIX_timestamp", firestore.Asc).Limit(1).Documents(ctx).GetAll()
+						Where("UNIX_timestamp", ">=", time.Now().Unix()-config.PauseTimeFrame).OrderBy("UNIX_timestamp", firestore.Asc).Limit(1).Documents(ctx).GetAll()
 					if err == nil && len(docs) > 0 {
 						// check if price change in 15 minute
 						lastPrice := docs[0].Data()["price"].(float64)
 						log.Println("tick.lastPrice:", lastPrice, "currentPrice:", xlmgrx)
-						if math.Abs(100*(xlmgrx-lastPrice))/lastPrice > 15 && time.Now().Unix() > pauseUntil {
+						if math.Abs(100*(xlmgrx-lastPrice))/lastPrice > config.PauseIncPer && time.Now().Unix() > pauseUntil {
 							// pause close algo 60 minutes
 							//isPause = true
-							pauseUntil = time.Now().Unix() + int64(60*60)
+							pauseUntil = time.Now().Unix() + config.PausePeriod
 							log.Println("tick.price change over 15% within 15 minute, pause until:", pauseUntil)
 							store.Doc(ADMIN_SETTING).Set(contxt, map[string]interface{}{"pauseUntil": pauseUntil}, firestore.MergeAll)
 							//cache.Client.HSet("pauseClosing", "isPause", true)
@@ -438,13 +474,13 @@ func main() {
 				log.Println("pricechange.currentPrice:", currentPrice, "previousPrice", previousPrice)
 
 				per := math.Abs(currentPrice-previousPrice) * 100 / previousPrice
-				if per > 10 && time.Now().Unix() < pauseUntil {
-					pauseUntil += int64(15 * 60)
+				if per > config.PauseIncPerExt && time.Now().Unix() < pauseUntil {
+					pauseUntil += config.PausePeriodExt
 					log.Println("pricechange.price change over 10%, pause until:", pauseUntil)
 					store.Doc(ADMIN_SETTING).Set(contxt, map[string]interface{}{"pauseUntil": pauseUntil}, firestore.MergeAll)
 					cache.Client.HSet("pauseClosing", "pauseUntil", pauseUntil)
-				} else if per > 15 && time.Now().Unix() > pauseUntil {
-					pauseUntil = time.Now().Unix() + int64(60*60)
+				} else if per > config.PauseIncPer && time.Now().Unix() > pauseUntil {
+					pauseUntil = time.Now().Unix() + config.PausePeriod
 					store.Doc(ADMIN_SETTING).Set(contxt, map[string]interface{}{"pauseUntil": pauseUntil}, firestore.MergeAll)
 					cache.Client.HSet("pauseClosing", "pauseUntil", pauseUntil)
 					log.Println("pricechange.price change over 15%, pause until:", pauseUntil)

@@ -8,5 +8,11 @@
 	"redisPort": 6379,
 	"redisPass":"KyZZspRWiyFiBOihPNYrqM9OBZ",
 	"horizonUrl":"https://horizon.stellar.org/",
-	"host":"https://app.grayll.io/"
+	"host":"https://app.grayll.io/",
+	"pauseTimeFrame":900,
+    "pausePeriod":7200,
+    "pauseTimeFrameExt":600,
+    "pausePeriodExt":1800,                            
+    "pauseIncPer":15,
+    "pauseIncPerExt":10
 }

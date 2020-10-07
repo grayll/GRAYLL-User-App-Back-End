@@ -9,5 +9,11 @@
 	"redisPass":"KyZZspRWiyFiBOihPNYrqM9OBZ",
 	"horizonUrl":"https://horizon-testnet.stellar.org/",
 	"host":"http://127.0.0.1:4200",
-	"superAdminAddress":"GDVYGHTLKVYAPMX76AY24FLNNFV3SJRODMYE3PIUFLQHZ67XBOT7FPVE"
+	"superAdminAddress":"GDVYGHTLKVYAPMX76AY24FLNNFV3SJRODMYE3PIUFLQHZ67XBOT7FPVE",
+	"pauseTimeFrame":15,
+    "pausePeriod":120,
+    "pauseTimeFrameExt":10,
+    "pausePeriodExt":30,                            
+    "pauseIncPer":15,
+    "pauseIncPerExt":10
 }
