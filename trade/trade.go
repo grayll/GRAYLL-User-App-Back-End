@@ -509,6 +509,8 @@ func main() {
 	signal.Notify(sig, os.Interrupt)
 	<-sig
 
+	//cursor := tradeRequest.Cursor
+
 	// Shutdown. Cancel application context will kill all attached tasks.
 	cancel()
 

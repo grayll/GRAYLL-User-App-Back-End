@@ -96,10 +96,16 @@ func main() {
 	stellar.SetupParam(float64(1000), config.IsMainNet, config.HorizonUrl)
 
 	// connect redis
+	redisHost := os.Getenv("REDIS_HOST")
+	if redisHost != "" {
+		config.RedisHost = redisHost
+	}
 	ttl, _ := time.ParseDuration("12h")
 	cache, err := api.NewRedisCache(ttl, config)
 	if err != nil {
 		log.Fatalln("ERROR - main - unable connect to redis", err)
+	} else {
+		log.Println("main- connected to redis", config.RedisHost)
 	}
 	client := search.NewClient("BXFJWGU0RM", "ef746e2d654d89f2a32f82fd9ffebf9e")
 	algoliaOrderIndex := client.InitIndex("orders-ua")

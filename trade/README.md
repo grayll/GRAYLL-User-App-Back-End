@@ -64,3 +64,34 @@ sudo systemctl start streaming
 
 sudo cp /home/bc/trade .
 sudo cp /home/bc/streaming .
+
+== ulimit
+
+The ulimit command by default changes the HARD limits, which you (a user) can lower, but cannot raise.
+
+Use the -S option to change the SOFT limit, which can range from 0-{HARD}.
+
+I have actually aliased ulimit to ulimit -S, so it defaults to the soft limits all the time.
+
+alias ulimit='ulimit -S'
+As for your issue, you're missing a column in your entries in /etc/security/limits.conf.
+
+There should be FOUR columns, but the first is missing in your example.
+
+* soft nofile 4096
+* hard nofile 4096
+The first column describes WHO the limit is to apply for. '*' is a wildcard, meaning all users. To raise the limits for root, you have to explicitly enter 'root' instead of '*'.
+
+You also need to edit /etc/pam.d/common-session* and add the following line to the end:
+
+session required pam_limits.so
+
+=======
+
+check max open file
+cat /run/redis/redis-server.pid
+933
+cat /proc/933/limits
+
+lsof -p 933
+lsof | awk '{print $1}' | sort | uniq -c | sort -r | head

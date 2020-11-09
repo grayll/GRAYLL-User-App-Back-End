@@ -182,7 +182,7 @@ func main() {
 				log.Println("avoid crashing the program")
 			}
 		}()
-		log.Println("op type:", op.GetType())
+		/*log.Println("op type:", op.GetType())
 		if op.GetType() == "set_option" {
 			bytes, err := json.Marshal(op)
 			if err != nil {
@@ -207,7 +207,9 @@ func main() {
 				}
 			}
 
-		} else if op.GetType() == "payment" {
+		} else */
+		if op.GetType() == "payment" {
+
 			bytes, err := json.Marshal(op)
 			if err != nil {
 				return
@@ -472,6 +474,8 @@ func main() {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt)
 	<-sig
+
+	//cursor := opRequest.Cursor
 
 	// Shutdown. Cancel application context will kill all attached tasks.
 	cancel()
