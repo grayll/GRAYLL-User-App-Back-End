@@ -5,7 +5,7 @@
 ## Build and deploy
 gcloud config set project grayll-app-f3f3f3 &&
 gcloud builds submit --tag gcr.io/grayll-app-f3f3f3/grayll-app &&
-gcloud beta run deploy --image gcr.io/grayll-app-f3f3f3/grayll-app --platform managed --region us-central1 --vpc-connector app-connector --set-env-vars  REDIS_HOST=10.128.0.6,SERVER=prod,SUPER_ADMIN_ADDRESS=,SUPER_ADMIN_SEED=
+gcloud beta run deploy --image gcr.io/grayll-app-f3f3f3/grayll-app --platform managed --region us-central1 --set-env-vars SERVER=prod,SUPER_ADMIN_ADDRESS=,SUPER_ADMIN_SEED=
 
 gcloud config set project grayll-app-f3f3f3 &&
 gcloud builds submit --tag gcr.io/grayll-app-f3f3f3/grayll-app-dev &&

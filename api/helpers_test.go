@@ -10,22 +10,36 @@ import (
 	"testing"
 	//"bitbucket.org/grayll/grayll.io-user-app-back-end/mail"
 	stellar "github.com/huyntsgs/stellar-service"
+	build "github.com/stellar/go/txnbuild"
 )
 
 func TestVerifyEmail(t *testing.T) {
 	//VerifyEmailNeverBounce("private_f1db1a9eeccd5dd76347bf58596becf4", "huykbc@gmail.com")
 	//VerifyEmailNeverBounce("private_f1db1a9eeccd5dd76347bf58596becf4", "huykbc1@gmail.com")
 
-	//mergeAccount()
+	mergeAccountNormal()
+}
+func mergeAccountNormal() {
+	stellar.SetupParams(float64(1000), true)
+	_, _, err := stellar.MergeAccountNormal("GBDLGL5BOMQ3DLKDXXOCQZYCDCAZRYRVTDR2GRQU4WVFUBFMHVZDRPS2", "SDZMO6BAXATHUEOVCXO5UUETIPEGLFMELIHXSKIDHFO3GWDDVGARDUGK",
+		build.CreditAsset{Code: "GRX", Issuer: "GAQQZMUNB7UCL2SXHU6H7RZVNFL6PI4YXLPJNBXMOZXB2LOQ7LODH333"})
+	log.Println(err)
 }
 
 func mergeAccount() {
+	stellar.SetupParams(float64(1000), true)
+	err := MergeAccount("GB4ZOYYZ7QYIINMZEU2JFKWJG4D3XLQHDIVSHKTP7TX7HECS3JS4P3KI", "")
+	log.Println(err)
+
+}
+
+func mergeAccounts() {
 	stellar.SetupParams(float64(1000), true)
 	accounts := []string{"GBAKJG5LHVUR5SMHQH5XCO4MYFK3NLB7PRI3VWN73DQPV6DX5CJRIQS3", "GCZVYLRZ4BRXEWEXQBKLZKQK6GW7IHSHZGYMNAL3FDIV43RZ37NA5DWR", "GAGOZC3I5R6EUN2CAL62JXSNURDNSLCJ7MEA3UCC6QOSBR3VLUV52VK6",
 		"GBCWPT2WEMOEC5WINH4NBEIZNG6H32WFZIHMMDLDTGWQHFFNBGGZWLQF", "GCM3LTXFZUZKHZCHGC266JHGCNJPUFUN2PHW5QI65RRD5QG2UHYUWGWC", "GCLOFLUZZJOHS7IHJBYTSGUBJJRI32Y73ZIFIQKCYBI72QTKURAJNMJI"}
 	//"GALS6XF2FNME4XZGRH7PLZPXUZQHB6TZ6MS5VNIAYIYWXS3ATBVH5FWM", "GA6ZQM3WGGLEC53NKOVRXTNFSGTKW7YD4JJL2OTLWNID7HNVIBDUKPKO", "GBVQ2AHQL6A7FCNL7KM3XZWKIWU7F6FXNYIGMHS5UL5YAEZZ36SQN3VO", "GDBEAEKAJBMZDTI4JHJ52DFPXVI5OIJVMDMRGTNZKMNVZTH5D7NC5QWJ"}
 	for _, acc := range accounts {
-		err := MergeAccount(acc, "SATORSIMUQSQRV6H2TJRE7DO5YLES36JUHBGNQENSLXOAVBGHVI7K64B")
+		err := MergeAccount(acc, "")
 		log.Println(acc, err)
 		time.Sleep(15 * time.Second)
 	}

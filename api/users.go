@@ -2829,63 +2829,79 @@ func (h UserHandler) Invite() gin.HandlerFunc {
 func (h UserHandler) ReportClosing() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get docid from url
-		algorithm := c.Param("algorithm")
+		//algorithm := c.Param("algorithm")
 
-		var input struct {
+		type Input struct {
 			GrayllTxId       string  `json:"grayllTxId"`
 			Algorithm        string  `json:"algorithm"`
 			GrxUsd           float64 `json:"grxUsd"`
 			PositionValue    float64 `json:"positionValue"`
 			PositionValueGRX float64 `json:"positionValueGRX"`
-			UserId           string  `json:"userId"`
-			Name             string  `json:"name"`
-			Lname            string  `json:"lname"`
-			PublicKey        string  `json:"publicKey"`
+			// UserId           string  `json:"userId"`
+			// Name             string  `json:"name"`
+			// Lname            string  `json:"lname"`
+			// PublicKey        string  `json:"publicKey"`
+		}
+		var reportData struct {
+			Positions  []Input `json:"positions"`
+			UserId     string  `json:"userId"`
+			Name       string  `json:"name"`
+			Lname      string  `json:"lname"`
+			PublicKey  string  `json:"publicKey"`
+			PauseUntil int     `json:"pauseUntil"`
+			ClientTime int     `json:"clientTime"`
 		}
 		uid := c.GetString(UID)
-		err := c.BindJSON(&input)
+		err := c.BindJSON(&reportData)
 		if err != nil {
 			log.Println("[ERROR]-ReportClosing - unable bind json ", uid, err)
 			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
 			return
 		}
 
-		content := []string{""}
-		if input.GrayllTxId == "" {
-			content = []string{
-				time.Now().Format(`15:04 | 02-01-2006`),
+		//content := []string{""}
+		// if input.GrayllTxId == "" {
+		// 	content = []string{
+		// 		time.Now().Format(`15:04 | 02-01-2006`),
 
-				fmt.Sprintf(`%s %s is attempting to close all %s algo position outside of the current GRX market volatility parameters.`, input.Name, input.Lname, algorithm),
+		// 		fmt.Sprintf(`%s %s is attempting to close all %s algo position outside of the current GRX market volatility parameters.`, input.Name, input.Lname, algorithm),
 
-				fmt.Sprintf(`GRX Rate | $ %7f`, input.GrxUsd),
+		// 		fmt.Sprintf(`GRX Rate | $ %7f`, input.GrxUsd),
 
-				fmt.Sprintf(`User Account: %s`, input.PublicKey),
+		// 		fmt.Sprintf(`User Account: %s`, input.PublicKey),
 
-				fmt.Sprintf(`GRAYLL User ID: %s`, input.UserId),
+		// 		fmt.Sprintf(`GRAYLL User ID: %s`, input.UserId),
+		// 	}
+		// } else {
+
+		// }
+		content := []string{
+			time.Now().Format(`15:04 | 02-01-2006`),
+
+			fmt.Sprintf(`%s %s is attempting to close an algo position outside of the current GRX market volatility parameters.`, reportData.Name, reportData.Lname),
+
+			fmt.Sprintf(`User Account: %s`, reportData.PublicKey),
+
+			fmt.Sprintf(`GRAYLL User ID: %s`, reportData.UserId),
+		}
+		for _, position := range reportData.Positions {
+			positionContent := []string{
+				fmt.Sprintf(`==========`),
+				fmt.Sprintf(`GRX Rate | $ %7f`, position.GrxUsd),
+
+				fmt.Sprintf(`USD Algo Position Value | $ %7f`, position.PositionValue),
+
+				fmt.Sprintf(`GRX Algo Position Value | %7f GRX `, position.PositionValueGRX),
+
+				fmt.Sprintf(`%s | GRAYLL | Transaction ID | %s `, position.Algorithm, position.GrayllTxId),
 			}
-		} else {
-			content = []string{
-				time.Now().Format(`15:04 | 02-01-2006`),
-
-				fmt.Sprintf(`%s %s is attempting to close an algo position outside of the current GRX market volatility parameters.`, input.Name, input.Lname),
-
-				fmt.Sprintf(`GRX Rate | $ %7f`, input.GrxUsd),
-
-				fmt.Sprintf(`USD Algo Position Value | $ %7f`, input.PositionValue),
-
-				fmt.Sprintf(`GRX Algo Position Value | %7f GRX `, input.PositionValueGRX),
-
-				fmt.Sprintf(`%s | GRAYLL | Transaction ID | %s `, input.Algorithm, input.GrayllTxId),
-
-				fmt.Sprintf(`User Account: %s`, input.PublicKey),
-
-				fmt.Sprintf(`GRAYLL User ID: %s`, input.UserId),
-			}
+			content = append(content, positionContent...)
 		}
 
 		err = mail.SendNoticeMail("grayll@grayll.io", "GRAYLL", "GRAYLL | GRX Market Volatility | Algo System Intervention", content)
+		//err = mail.SendNoticeMail("huykbc@gmail.com", "GRAYLL", "GRAYLL | GRX Market Volatility | Algo System Intervention", content)
 		if err != nil {
-			log.Println("[ERROR]- Invite - can not send mail invite:", err)
+			log.Println("[ERROR]- ReportClosing - can not send mail invite:", err)
 			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
 			return
 		}

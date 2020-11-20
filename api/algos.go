@@ -240,10 +240,10 @@ func (h UserHandler) MakeTransaction() gin.HandlerFunc {
 		}
 
 		if input.TX == "loanpaid" {
-			txrs, err, txcode := stellar.ParseLoanXDR(input.XDR, userInfo["PublicKey"].(string), h.apiContext.Config.XlmLoanerSeed, h.apiContext.Config.XlmLoanerAddress, float64(2.0001))
+			txrs, err := stellar.ParseLoanXDR(input.XDR, userInfo["PublicKey"].(string), h.apiContext.Config.XlmLoanerSeed, h.apiContext.Config.XlmLoanerAddress, float64(2.0001))
 			if err != nil {
 				c.JSON(http.StatusOK, gin.H{
-					"errCode": txcode,
+					"errCode": txrs,
 				})
 			} else {
 				_, err := h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{"LoanPaidStatus": 2}, firestore.MergeAll)
@@ -258,25 +258,20 @@ func (h UserHandler) MakeTransaction() gin.HandlerFunc {
 				// 	log.Println("Can not remove signer", err)
 				// }
 				c.JSON(http.StatusOK, gin.H{
-					"errCode": txcode, "xdrResult": txrs.Result,
+					"errCode": txrs,
 				})
 			}
 
 		} else {
-			txrs, err, txcode := stellar.ParseXDR(input.XDR, userInfo["PublicKey"].(string), h.apiContext.Config.XlmLoanerSeed)
+			txrs, err := stellar.ParseXDR(input.XDR)
 			if err != nil {
 				c.JSON(http.StatusOK, gin.H{
-					"errCode": txcode,
+					"errCode": txrs,
 				})
 			} else {
-				// tr := &xdr.TransactionResult{}
-				// err := tr.Scan(txrs.Result)
-				// log.Println("code:", tr.Result.Code.String())
-				// rs, _ := tr.Result.MustResults()[0].MustTr().GetManageBuyOfferResult()
-				// log.Println("err:", err, rs.Success.Offer.MustOffer().Amount)
 
 				c.JSON(http.StatusOK, gin.H{
-					"errCode": txcode, "xdrResult": txrs.Result,
+					"errCode": txrs,
 				})
 			}
 		}
