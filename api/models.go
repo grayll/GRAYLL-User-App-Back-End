@@ -72,3 +72,10 @@ type Contact struct {
 	RefererName  string `json:"rname"`
 	RefererLName string `json:"rlname"`
 }
+type Input struct {
+	GrayllTxId       string  `json:"grayllTxId"`
+	Algorithm        string  `json:"algorithm"`
+	GrxUsd           float64 `json:"grxUsd"`
+	PositionValue    float64 `json:"positionValue"`
+	PositionValueGRX float64 `json:"positionValueGRX"`
+}

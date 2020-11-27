@@ -127,7 +127,7 @@ func (h UserHandler) Login() gin.HandlerFunc {
 			return
 		}
 
-		userInfo, uid := GetUserByField(h.apiContext.Store, "Email", user.Email)
+		userInfo, uid := GetUserLogin(h.apiContext.Store, "Email", user.Email)
 		if userInfo == nil {
 			GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Invalid user name or password")
 			return
@@ -2828,8 +2828,6 @@ func (h UserHandler) Invite() gin.HandlerFunc {
 }
 func (h UserHandler) ReportClosing() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get docid from url
-		//algorithm := c.Param("algorithm")
 
 		type Input struct {
 			GrayllTxId       string  `json:"grayllTxId"`
@@ -2837,10 +2835,6 @@ func (h UserHandler) ReportClosing() gin.HandlerFunc {
 			GrxUsd           float64 `json:"grxUsd"`
 			PositionValue    float64 `json:"positionValue"`
 			PositionValueGRX float64 `json:"positionValueGRX"`
-			// UserId           string  `json:"userId"`
-			// Name             string  `json:"name"`
-			// Lname            string  `json:"lname"`
-			// PublicKey        string  `json:"publicKey"`
 		}
 		var reportData struct {
 			Positions  []Input `json:"positions"`
@@ -2859,26 +2853,10 @@ func (h UserHandler) ReportClosing() gin.HandlerFunc {
 			return
 		}
 
-		//content := []string{""}
-		// if input.GrayllTxId == "" {
-		// 	content = []string{
-		// 		time.Now().Format(`15:04 | 02-01-2006`),
-
-		// 		fmt.Sprintf(`%s %s is attempting to close all %s algo position outside of the current GRX market volatility parameters.`, input.Name, input.Lname, algorithm),
-
-		// 		fmt.Sprintf(`GRX Rate | $ %7f`, input.GrxUsd),
-
-		// 		fmt.Sprintf(`User Account: %s`, input.PublicKey),
-
-		// 		fmt.Sprintf(`GRAYLL User ID: %s`, input.UserId),
-		// 	}
-		// } else {
-
-		// }
 		content := []string{
 			time.Now().Format(`15:04 | 02-01-2006`),
 
-			fmt.Sprintf(`%s %s is attempting to close an algo position outside of the current GRX market volatility parameters.`, reportData.Name, reportData.Lname),
+			fmt.Sprintf(`%s %s is attempting to close algo positions outside of the current GRX market volatility parameters.`, reportData.Name, reportData.Lname),
 
 			fmt.Sprintf(`User Account: %s`, reportData.PublicKey),
 
@@ -2898,8 +2876,8 @@ func (h UserHandler) ReportClosing() gin.HandlerFunc {
 			content = append(content, positionContent...)
 		}
 
-		err = mail.SendNoticeMail("grayll@grayll.io", "GRAYLL", "GRAYLL | GRX Market Volatility | Algo System Intervention", content)
-		//err = mail.SendNoticeMail("huykbc@gmail.com", "GRAYLL", "GRAYLL | GRX Market Volatility | Algo System Intervention", content)
+		//err = mail.SendNoticeMail("grayll@grayll.io", "GRAYLL", "GRAYLL | GRX Market Volatility | Algo System Intervention", content)
+		err = mail.SendNoticeMail("huykbc@gmail.com", "GRAYLL", "GRAYLL | GRX Market Volatility | Algo System Intervention", content)
 		if err != nil {
 			log.Println("[ERROR]- ReportClosing - can not send mail invite:", err)
 			GinRespond(c, http.StatusOK, INTERNAL_ERROR, "email in used")
