@@ -72,6 +72,7 @@ func GetFsClient(isLocal bool) (*firestore.Client, error) {
 	ctx := context.Background()
 	if isLocal {
 		opt := option.WithCredentialsFile("grayll-app-f3f3f3-firebase-adminsdk-vhclm-e074da6170.json")
+
 		// app, err := firebase.NewApp(ctx, nil, opt)
 		// if err != nil {
 		// 	log.Fatalln("Error create new gray user app:", err)
@@ -81,12 +82,10 @@ func GetFsClient(isLocal bool) (*firestore.Client, error) {
 
 	} else {
 
-		// conf := &firebase.Config{ProjectID: projectID}
-		// app, err := firebase.NewApp(ctx, conf)
-		// if err != nil {
-		// 	log.Fatalln(err)
-		// }
-
+		// opt := option.WithGRPCDialOption(grpc.WithKeepaliveParams(keepalive.ClientParameters{
+		//         Time: 2 * time.Minute,
+		//     }))
+		//firebase.NewApp(ctx, conf, opt)
 		//client, err = app.Firestore(ctx)
 		client, err = firestore.NewClient(ctx, projectID)
 

@@ -387,6 +387,127 @@ func (cache *RedisCache) GetRois(algo string) []float64 {
 	return res
 
 }
+func (cache *RedisCache) GetRoisNew(uid, algo string) []float64 {
+	res := make([]float64, 0)
+	val := float64(0)
+	var err error
+	roiType := uid + "_" + algo + "_roi24h"
+	//log.Println("roiType:", roiType)
+	roi24h, err := cache.Client.ZRevRangeWithScores(roiType, 0, 0).Result()
+	if err != nil || len(roi24h) == 0 {
+		//log.Println("error ZRangeByScore roi24h", err, roi24h)
+		val = 0
+	} else {
+		//log.Println("ZRangeByScore roi24h", roi24h)
+		val = roi24h[0].Score
+	}
+	res = append(res, val)
+
+	roiType = uid + "_" + algo + "_roi7d"
+	roi7d, err := cache.Client.ZRevRangeWithScores(roiType, 0, 0).Result()
+	if err != nil || len(roi7d) == 0 {
+		//log.Println("error ZRangeByScore roi7d", err)
+		val = 0
+	} else {
+		val = roi7d[0].Score
+	}
+	res = append(res, val)
+
+	roiType = uid + "_" + algo + "_roitotal"
+	roiTotal, err := cache.Client.ZRevRangeWithScores(roiType, 0, 0).Result()
+	if err != nil || len(roiTotal) == 0 {
+		log.Println("error ZRangeByScore roiTotal", err)
+		val = 0
+	} else {
+		val = roiTotal[0].Score
+	}
+	res = append(res, val)
+
+	return res
+
+}
+func (cache *RedisCache) UpdateRoiNew(uid, graylltx, algo string, value float64, roiType string) {
+	roiKey := uid + "_" + algo
+	switch roiType {
+	case "24h":
+		roiKey = roiKey + "_roi24h"
+		//log.Println("roiKey", roiKey)
+		cache.Client.ZAdd(roiKey, redis.Z{value, graylltx})
+	case "7d":
+		roiKey = roiKey + "_roi7d"
+		cache.Client.ZAdd(roiKey, redis.Z{value, graylltx})
+	case "total":
+		roiKey = roiKey + "_roitotal"
+		cache.Client.ZAdd(roiKey, redis.Z{value, graylltx})
+	case "all":
+		roiKey = roiKey + "_roi24h"
+		cache.Client.ZAdd(roiKey, redis.Z{value, graylltx})
+		roiKey = roiKey + "_roi7d"
+		cache.Client.ZAdd(roiKey, redis.Z{value, graylltx})
+		roiKey = roiKey + "_roitotal"
+		cache.Client.ZAdd(roiKey, redis.Z{value, graylltx})
+	}
+
+}
+func (cache *RedisCache) RemoveRoiNew(uid, algo string, graylltx ...string) {
+	roiKey := uid + "_" + algo + "_roi24h"
+	cache.Client.ZRem(roiKey, graylltx)
+	roiKey = uid + "_" + algo + "_roi7d"
+	cache.Client.ZRem(roiKey, graylltx)
+	roiKey = uid + "_" + algo + "_roitotal"
+	cache.Client.ZRem(roiKey, graylltx)
+}
+
+func (cache *RedisCache) GetRoisNew1(uid, algo string) []float64 {
+	res := make([]float64, 0)
+	val := float64(0)
+	var err error
+	roiType := uid + "_" + algo + "_roi24h"
+	log.Println(roiType)
+	roi24h, err := cache.Client.ZRangeByScore(roiType, redis.ZRangeBy{Offset: -1, Count: 1}).Result()
+	if err != nil || len(roi24h) == 0 {
+		log.Println("error ZRangeByScore roi24h", err)
+		val = 0
+	} else {
+
+		val, err = strconv.ParseFloat(roi24h[1], 64)
+		if err != nil {
+			val = 0
+		}
+	}
+	res = append(res, val)
+
+	roiType = uid + "_" + algo + "_roi7d"
+
+	roi7d, err := cache.Client.ZRangeByScore(roiType, redis.ZRangeBy{Offset: -1, Count: 1}).Result()
+	if err != nil || len(roi7d) == 0 {
+		log.Println("error ZRangeByScore roi7d", err)
+		val = 0
+	} else {
+		val, err = strconv.ParseFloat(roi7d[1], 64)
+		if err != nil {
+			val = 0
+		}
+	}
+	res = append(res, val)
+
+	roiType = uid + "_" + algo + "_roitotal"
+	roiTotal, err := cache.Client.ZRangeByScore(roiType, redis.ZRangeBy{Offset: -1, Count: 1}).Result()
+
+	if err != nil || len(roiTotal) == 0 {
+		log.Println("error ZRangeByScore roiTotal", err)
+		val = 0
+	} else {
+		val, err = strconv.ParseFloat(roiTotal[1], 64)
+		if err != nil {
+			val = 0
+		}
+	}
+	res = append(res, val)
+
+	return res
+
+}
 
 // emaillogin emailregister
 func (cache *RedisCache) SetRecapchaToken(emailAction, recapchaToken string) {

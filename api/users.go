@@ -2492,6 +2492,166 @@ func (h UserHandler) UpdateSetting() gin.HandlerFunc {
 	}
 }
 
+func (h UserHandler) UpdateKycDoc() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		var input map[string]interface{}
+		type Output struct {
+			Valid   bool   `json:"valid"`
+			Message string `json:"message"`
+			ErrCode string `json:"errCode"`
+		}
+		var output Output
+		var err = c.BindJSON(&input)
+		if err != nil {
+			log.Println("Parse kyc err", err)
+			output = Output{Valid: false, ErrCode: INVALID_PARAMS, Message: "Can not parse input data"}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+
+		for k, _ := range input {
+			newKey := k + "Time"
+			input[newKey] = time.Now().Unix()
+			break
+		}
+		batch := h.apiContext.Store.Batch()
+
+		uid := c.GetString(UID)
+
+		docRef := h.apiContext.Store.Doc("users/" + uid)
+		batch.Set(docRef, map[string]interface{}{"KycDocs": input}, firestore.MergeAll)
+
+		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+		if userInfo == nil {
+			output = Output{Valid: false, ErrCode: INVALID_UNAME_PASSWORD, Message: "User does not exist."}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+		ret, msg := VerifyKycStatus(userInfo)
+		//log.Println("verify result ret,msg: ", ret, msg)
+		if ret == 0 && msg == "" {
+
+			docRef = h.apiContext.Store.Doc("users/" + uid)
+			batch.Set(docRef, map[string]interface{}{"Status": "Submitted"}, firestore.MergeAll)
+
+			docRef = h.apiContext.Store.Doc("users_meta/" + uid)
+			batch.Set(docRef, map[string]interface{}{"Status": "Submitted"}, firestore.MergeAll)
+
+			title := "KYC documents upload status"
+			msg := "You have uploaded all required documents. We will review within 7 days"
+			mail.SendNoticeMail(userInfo["Email"].(string), userInfo["Name"].(string), title, []string{msg})
+
+			notice := map[string]interface{}{
+				"title":  title,
+				"body":   msg,
+				"isRead": false,
+				"time":   time.Now().Unix(),
+			}
+			docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(input.Uid).NewDoc()
+			batch.Set(docRef, notice)
+
+		}
+		_, err = batch.Commit(context.Background())
+		if err != nil {
+			output = Output{Valid: false, ErrCode: INTERNAL_ERROR, Message: "Can not update kyc doc."}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+
+		output = Output{Valid: true}
+		c.JSON(http.StatusOK, output)
+	}
+}
+
+func (h UserHandler) UpdateKyc() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		var input KYC
+		type Output struct {
+			Valid   bool   `json:"valid"`
+			Message string `json:"message"`
+			ErrCode string `json:"errCode"`
+		}
+		var output Output
+		var err = c.BindJSON(&input)
+		if err != nil {
+			log.Println("Parse kyc err", err)
+			output = Output{Valid: false, ErrCode: INVALID_PARAMS, Message: "Can not parse input data"}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+
+		if govalidator.IsNull(input.Name) || govalidator.IsNull(input.LName) || govalidator.IsNull(input.GovId) ||
+			govalidator.IsNull(input.Nationality) || govalidator.IsNull(input.DoB) {
+			output = Output{Valid: false, ErrCode: INVALID_PARAMS, Message: "Can not parse input data"}
+			c.JSON(http.StatusOK, output)
+		}
+
+		uid := c.GetString(UID)
+		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+		if userInfo == nil {
+			output = Output{Valid: false, ErrCode: INVALID_UNAME_PASSWORD, Message: "User does not exist."}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+
+		_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{"Kyc": input}, firestore.MergeAll)
+		if err != nil {
+			output = Output{Valid: false, ErrCode: INTERNAL_ERROR, Message: "Can not update profile."}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+
+		output = Output{Valid: true}
+		c.JSON(http.StatusOK, output)
+	}
+}
+func (h UserHandler) UpdateKycCom() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		var input KYCCom
+		type Output struct {
+			Valid   bool   `json:"valid"`
+			Message string `json:"message"`
+			ErrCode string `json:"errCode"`
+		}
+		var output Output
+		var err = c.BindJSON(&input)
+		log.Println("Parse kyc err", err)
+		if err != nil {
+
+			output = Output{Valid: false, ErrCode: INVALID_PARAMS, Message: "Can not parse input data"}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+		log.Println(input)
+
+		if govalidator.IsNull(input.Name) || (govalidator.IsNull(input.Address1) && govalidator.IsNull(input.Address2)) || govalidator.IsNull(input.Registration) ||
+			govalidator.IsNull(input.City) || govalidator.IsNull(input.Country) {
+			output = Output{Valid: false, ErrCode: INVALID_PARAMS, Message: "Input data is invalid"}
+			c.JSON(http.StatusOK, output)
+		}
+
+		uid := c.GetString(UID)
+		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+		if userInfo == nil {
+			output = Output{Valid: false, ErrCode: INVALID_UNAME_PASSWORD, Message: "User does not exist."}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+		status := map[string]interface{}{"AppType": "Company"}
+		_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{"KycCom": input, "Kyc": status}, firestore.MergeAll)
+		if err != nil {
+			output = Output{Valid: false, ErrCode: INTERNAL_ERROR, Message: "Can not update profile."}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+
+		output = Output{Valid: true}
+		c.JSON(http.StatusOK, output)
+	}
+}
 func (h UserHandler) UpdateProfile() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input struct {
@@ -2835,6 +2995,7 @@ func (h UserHandler) ReportClosing() gin.HandlerFunc {
 			GrxUsd           float64 `json:"grxUsd"`
 			PositionValue    float64 `json:"positionValue"`
 			PositionValueGRX float64 `json:"positionValueGRX"`
+			Duration         string  `json:"duration"`
 		}
 		var reportData struct {
 			Positions  []Input `json:"positions"`
@@ -2867,6 +3028,8 @@ func (h UserHandler) ReportClosing() gin.HandlerFunc {
 				fmt.Sprintf(`==========`),
 				fmt.Sprintf(`GRX Rate | $ %7f`, position.GrxUsd),
 
+				fmt.Sprintf(`Algo Position Duration: %s`, position.Duration),
+
 				fmt.Sprintf(`USD Algo Position Value | $ %7f`, position.PositionValue),
 
 				fmt.Sprintf(`GRX Algo Position Value | %7f GRX `, position.PositionValueGRX),
@@ -2876,7 +3039,7 @@ func (h UserHandler) ReportClosing() gin.HandlerFunc {
 			content = append(content, positionContent...)
 		}
 
-		//err = mail.SendNoticeMail("grayll@grayll.io", "GRAYLL", "GRAYLL | GRX Market Volatility | Algo System Intervention", content)
+		err = mail.SendNoticeMail("grayll@grayll.io", "GRAYLL", "GRAYLL | GRX Market Volatility | Algo System Intervention", content)
 		err = mail.SendNoticeMail("huykbc@gmail.com", "GRAYLL", "GRAYLL | GRX Market Volatility | Algo System Intervention", content)
 		if err != nil {
 			log.Println("[ERROR]- ReportClosing - can not send mail invite:", err)

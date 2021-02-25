@@ -232,11 +232,14 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 
 	v1admin := router.Group("/api/admin/v1")
 	v1admin.POST("/accounts/loginadmin", userHandler.LoginAdmin())
+
 	v1admin.Use(api.Authorize(appContext.Jwt))
 	{
 		v1admin.GET("/users/getusersmeta/:cursor", userHandler.GetUsersMeta())
 		v1admin.POST("/users/setstatus", userHandler.SetStatus())
 		v1admin.GET("/users/getuserdata/:searchStr", userHandler.GetUserData())
+
+		v1admin.POST("/users/verifykycdoc", userHandler.VerifyKycDoc())
 	}
 
 	// apis needs to authenticate
@@ -290,6 +293,11 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 
 		v1.POST("/users/reportclosing", userHandler.ReportClosing())
 		v1.POST("/users/updateHomeDomain", userHandler.UpdateHomeDomain())
+
+		v1.POST("/users/updatekyc", userHandler.UpdateKyc())
+		v1.POST("/users/updatekyccom", userHandler.UpdateKycCom())
+		v1.POST("/users/updatekycdoc", userHandler.UpdateKycDoc())
+
 	}
 	return router
 }

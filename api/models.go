@@ -79,3 +79,51 @@ type Input struct {
 	PositionValue    float64 `json:"positionValue"`
 	PositionValueGRX float64 `json:"positionValueGRX"`
 }
+type KYC struct {
+	Status      string `json:"Status,omitempty"`
+	AppType     string `json:"AppType,omitempty"`
+	Name        string `json:"Name,omitempty"`
+	LName       string `json:"LName,omitempty"`
+	Nationality string `json:"Nationality,omitempty"`
+	GovId       string `json:"GovId,omitempty"`
+	DoB         string `json:"DoB,omitempty"`
+}
+type KYCCom struct {
+	Name         string `json:"Name,omitempty"`
+	Registration string `json:"Registration,omitempty"`
+	Address1     string `json:"Address1,omitempty"`
+	Address2     string `json:"Address2,omitempty"`
+	City         string `json:"City,omitempty"`
+	Country      string `json:"Country,omitempty"`
+}
+type KYCDocs struct {
+	GovPassport       string `json:"GovPassport,omitempty"`
+	GovNationalIdCard string `json:"GovNationalIdCard,omitempty"`
+	GovDriverLicense  string `json:"GovDriverLicense,omitempty"`
+
+	// requires tax return
+	Income6MPaySlips   string `json:"Income6MPaySlips,omitempty"`
+	Income6MBankStt    string `json:"Income6MBankStt,omitempty"`
+	Income2YTaxReturns string `json:"Income2YTaxReturns,omitempty"`
+
+	// requires at least 2 docs
+	AddressUtilityBill        string `json:"AddressUtilityBill,omitempty"`
+	AddressBankStt            string `json:"AddressBankStt,omitempty"`
+	AddressRentalAgreement    string `json:"AddressRentalAgreement,omitempty"`
+	AddressPropertyTaxReceipt string `json:"AddressPropertyTaxReceipt,omitempty"`
+	AddressTaxReturn          string `json:"AddressTaxReturn,omitempty"`
+
+	AssetsShareStockCert string `json:"AssetsShareStockCert,omitempty"`
+	Assets2MBankAccStt   string `json:"Assets2MBankAccStt,omitempty"`
+	Assets2MRetireAccStt string `json:"Assets2MRetireAccStt,omitempty"`
+	Assets2MInvestAccStt string `json:"Assets2MInvestAccStt,omitempty"`
+
+	// company documents
+	CertIncorporation string `json:"CertIncorporation,omitempty"`
+	// require all docs
+	Company2YTaxReturns       string `json:"Company2YTaxReturns,omitempty"`
+	Company2YFinancialStt     string `json:"Company2YFinancialStt,omitempty"`
+	Company2YBalanceSheets    string `json:"Company2YBalanceSheets,omitempty"`
+	Company6MBankStt          string `json:"Company6MBankStt,omitempty"`
+	Company6MInvestmentAccStt string `json:"Company6MInvestmentAccStt,omitempty"`
+}

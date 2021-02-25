@@ -1096,9 +1096,50 @@ func (h UserHandler) GetDashBoardInfoGet() gin.HandlerFunc {
 		})
 	}
 }
+
+// func (h UserHandler) GetAlgoRoi() gin.HandlerFunc {
+// 	return func(c *gin.Context) {
+// 		//start := time.Now()
+// 		//uid := c.GetString(UID)
+// 		gry1s := make([]float64, 0)
+// 		gry2s := make([]float64, 0)
+// 		gry3s := make([]float64, 0)
+// 		grzs := make([]float64, 0)
+// 		wg := new(sync.WaitGroup)
+// 		wg.Add(4)
+// 		go func() {
+// 			gry1s = h.apiContext.Cache.GetRois("gry1")
+// 			wg.Done()
+// 		}()
+// 		//elapse := time.Since(start).Seconds()
+// 		go func() {
+// 			gry2s = h.apiContext.Cache.GetRois("gry2")
+// 			wg.Done()
+// 		}()
+// 		go func() {
+// 			gry3s = h.apiContext.Cache.GetRois("gry3")
+// 			wg.Done()
+// 		}()
+// 		go func() {
+// 			grzs = h.apiContext.Cache.GetRois("grz")
+// 			wg.Done()
+// 		}()
+// 		wg.Wait()
+// 		// log.Println("gry1", gry1s, elapse)
+// 		// log.Println("gry2s", gry2s)
+// 		// log.Println("gry3s", gry3s)
+// 		// log.Println("grzs", grzs)
+// 		c.JSON(http.StatusOK, gin.H{
+// 			"errCode": SUCCESS, "gry1s": gry1s, "gry2s": gry2s, "gry3s": gry3s, "grzs": grzs,
+// 		})
+
+// 	}
+// }
+
 func (h UserHandler) GetAlgoRoi() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		//start := time.Now()
+		uid := c.GetString(UID)
 		gry1s := make([]float64, 0)
 		gry2s := make([]float64, 0)
 		gry3s := make([]float64, 0)
@@ -1106,20 +1147,20 @@ func (h UserHandler) GetAlgoRoi() gin.HandlerFunc {
 		wg := new(sync.WaitGroup)
 		wg.Add(4)
 		go func() {
-			gry1s = h.apiContext.Cache.GetRois("gry1")
+			gry1s = h.apiContext.Cache.GetRoisNew(uid, "gry1")
 			wg.Done()
 		}()
 		//elapse := time.Since(start).Seconds()
 		go func() {
-			gry2s = h.apiContext.Cache.GetRois("gry2")
+			gry2s = h.apiContext.Cache.GetRoisNew(uid, "gry2")
 			wg.Done()
 		}()
 		go func() {
-			gry3s = h.apiContext.Cache.GetRois("gry3")
+			gry3s = h.apiContext.Cache.GetRoisNew(uid, "gry3")
 			wg.Done()
 		}()
 		go func() {
-			grzs = h.apiContext.Cache.GetRois("grz")
+			grzs = h.apiContext.Cache.GetRoisNew(uid, "grz")
 			wg.Done()
 		}()
 		wg.Wait()

@@ -17,19 +17,37 @@ func TestVerifyEmail(t *testing.T) {
 	//VerifyEmailNeverBounce("private_f1db1a9eeccd5dd76347bf58596becf4", "huykbc@gmail.com")
 	//VerifyEmailNeverBounce("private_f1db1a9eeccd5dd76347bf58596becf4", "huykbc1@gmail.com")
 
-	mergeAccountNormal()
+	mergeAccount()
 }
+
+// func getBalance() {
+// 	assets.CreateAsset("GRXT", issuer.Address())
+// 	//asset := assets.Asset{Code: "GRXT", IssuerAddress: issuer.Address()}
+
+// 	bl, err := stellar.GetNativeBalance(issuer.Address())
+// 	if err != nil {
+// 		log.Println("GetNativeBalance:issuer:err", err)
+// 	} else {
+// 		log.Println("GetNativeBalance:issuer:balance", bl)
+// 	}
+// 	bl, err = stellar.GetAssetBalance(issuer.Address(), "GRXT")
+// }
 func mergeAccountNormal() {
 	stellar.SetupParams(float64(1000), true)
-	_, _, err := stellar.MergeAccountNormal("GBDLGL5BOMQ3DLKDXXOCQZYCDCAZRYRVTDR2GRQU4WVFUBFMHVZDRPS2", "SDZMO6BAXATHUEOVCXO5UUETIPEGLFMELIHXSKIDHFO3GWDDVGARDUGK",
+	_, _, err := stellar.MergeAccountNormal("GBDLGL5BOMQ3DLKDXXOCQZYCDCAZRYRVTDR2GRQU4WVFUBFMHVZDRPS2", "SD5YOP37RU7EIXP4VTONKPQ34C4VJPW4XACQIQHWQJQOIYAAEOSITIMA",
 		build.CreditAsset{Code: "GRX", Issuer: "GAQQZMUNB7UCL2SXHU6H7RZVNFL6PI4YXLPJNBXMOZXB2LOQ7LODH333"})
 	log.Println(err)
 }
 
 func mergeAccount() {
 	stellar.SetupParams(float64(1000), true)
-	err := MergeAccount("GB4ZOYYZ7QYIINMZEU2JFKWJG4D3XLQHDIVSHKTP7TX7HECS3JS4P3KI", "")
-	log.Println(err)
+	// check trustline
+	trustline, _ := stellar.CheckEnabledTrustLine("GCTVZZ2BLQH3FTM472GSIBGXRGATR5N54FAFMN2WVRJT32ES6WZQML7O", "GRX")
+	if !trustline {
+		log.Println("merge account")
+		err := MergeAccountNChangeTrust("GCTVZZ2BLQH3FTM472GSIBGXRGATR5N54FAFMN2WVRJT32ES6WZQML7O", "SATORSIMUQSQRV6H2TJRE7DO5YLES36JUHBGNQENSLXOAVBGHVI7K64B")
+		log.Println(err)
+	}
 
 }
 

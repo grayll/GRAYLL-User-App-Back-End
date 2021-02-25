@@ -2,7 +2,7 @@ module bitbucket.org/grayll/grayll.io-user-app-back-end
 
 go 1.13
 
-//replace github.com/huyntsgs/stellar-service v0.0.0-20200811102404-492829a6952c => /home/bc/go/src/github.com/huyntsgs/stellar-service
+//replace github.com/huyntsgs/stellar-service v0.0.0-20201119030054-0d9cc0ccc690 => /home/bc/go/src/github.com/huyntsgs/stellar-service
 
 //replace github.com/huyntsgs/cors v1.3.2-0.20200524025249-9865eda97561 => /home/bc/go/src/github.com/huyntsgs/cors
 

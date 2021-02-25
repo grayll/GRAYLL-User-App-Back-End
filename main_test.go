@@ -32,10 +32,10 @@ const (
 )
 
 func TestVerify(t *testing.T) {
-	//QueryAlgoPosition()
+	QueryAlgoPosition()
 	//checkExistUserMeta()
 	//CheckUser("", "sanchezbuenoelromeral@gmail.com")
-	RecoverUser("3SBdaplZfV55teUdEQXEHVxd3z28OQ0AKd3OwE0DZBg")
+	//RecoverUser("3SBdaplZfV55teUdEQXEHVxd3z28OQ0AKd3OwE0DZBg")
 	//DelUsers()
 	//DelUser("andsoft88@gmail.com")
 	//MergeAccount("GC5TQRTXZHXIOSKI4SXRVVIRALFZQ6SV2D7WCFUGP2M2TRN3UFRKCOD2")
@@ -61,6 +61,17 @@ func GetClient() (*firestore.Client, error) {
 	return app.Firestore(ctx)
 
 }
+func GetGRY1Client() (*firestore.Client, error) {
+	ctx := context.Background()
+	opt := option.WithCredentialsFile("./grayll-gry-1-balthazar-firebase-adminsdk-k1tr8-1d65b938d5.json")
+	app, err := firebase.NewApp(ctx, nil, opt)
+	if err != nil {
+		log.Fatalln("Error create new firebase app:", err)
+	}
+
+	return app.Firestore(ctx)
+
+}
 func QueryAlgoPosition() {
 
 	client, err := GetClient()
@@ -72,14 +83,18 @@ func QueryAlgoPosition() {
 	//users := make([]map[string]interface{}, 0)
 	//var it *firestore.DocumentIterator
 	//it = h.apiContext.Store.Collection("users_meta").Limit(limit).StartAfter(cursor).OrderBy("time", firestore.Desc).Documents(context.Background())
-	usersmeta := client.Collection("users_meta")
-	firstPage, err := usersmeta.Limit(20).Documents(ctx).GetAll()
+	doc, _ := client.Doc("algo_positions/users/HrLu8WlorRKuKoz8fCYx/000000000000004213").Get(ctx)
+
+	client1, err := GetGRY1Client()
+
 	if err != nil {
 		log.Fatalln("Error create new firebase app:", err)
 	}
-
-	for _, doc := range firstPage {
-		log.Println("doc:", doc.Data())
+	ndoc := client1.Doc("algo_positions/users/HrLu8WlorRKuKoz8fCYx/000000000000004213")
+	log.Println(doc.Data())
+	_, err = ndoc.Set(ctx, doc.Data())
+	if err != nil {
+		log.Fatalln("Error create doc", err)
 	}
 
 }

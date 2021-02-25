@@ -22,7 +22,6 @@ import (
 	"bitbucket.org/grayll/grayll.io-user-app-back-end/models"
 	"bitbucket.org/grayll/grayll.io-user-app-back-end/utils"
 	"cloud.google.com/go/firestore"
-	"github.com/SherClockHolmes/webpush-go"
 
 	"github.com/avct/uasurfer"
 
@@ -248,6 +247,30 @@ func (h UserHandler) GetUserData() gin.HandlerFunc {
 				userData = doc[0].Data()
 				errCode = SUCCESS
 			}
+		} else if strings.Contains(searchStr, "Submmit") || strings.Contains(searchStr, "Approve") {
+			docs, _ := h.apiContext.Store.Collection("users_meta").Where("Status", "==", searchStr).Documents(ctx).GetAll()
+			users := make([]map[string]interface{}, 0)
+			if len(docs) > 0 {
+
+				for _, doc := range docs {
+					users = append(users, doc.Data())
+				}
+				errCode = SUCCESS
+			}
+			log.Println("users", users)
+			c.JSON(http.StatusOK, gin.H{
+				"errCode": errCode, "userData": users,
+			})
+			return
+
+		} else {
+			doc, err := h.apiContext.Store.Doc("users/" + searchStr).Get(ctx)
+			log.Println(err)
+			if err == nil && doc != nil {
+				userData = doc.Data()
+				userData["Uid"] = searchStr
+				errCode = SUCCESS
+			}
 		}
 
 		c.JSON(http.StatusOK, gin.H{
@@ -256,6 +279,136 @@ func (h UserHandler) GetUserData() gin.HandlerFunc {
 
 	}
 }
+
+// for admin
+func (h UserHandler) VerifyKycDoc() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		var input struct {
+			FieldName string `json:"fieldName"`
+			Status    string `json:"status"`
+			Uid       string `json:"uid"`
+			Name      string `json:"name"`
+			Email     string `json:"email"`
+			FieldTime int64  `json:"fieldTime"`
+		}
+		type Output struct {
+			Valid     bool   `json:"valid"`
+			Message   string `json:"message"`
+			ErrCode   string `json:"errCode"`
+			FieldName string `json:"fieldName"`
+			Value     int    `json:"value"`
+			AuditRes  string `json:"auditRes"`
+		}
+		var output Output
+		var err = c.BindJSON(&input)
+		if err != nil {
+			log.Println("VerifyKycDoc.Parse kyc err", err)
+			output = Output{Valid: false, ErrCode: INVALID_PARAMS, Message: "Can not parse input data"}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+		ctx := context.Background()
+		batch := h.apiContext.Store.Batch()
+		//uid := c.GetString(UID)
+		var newInput map[string]interface{}
+		value := 1
+
+		if input.Status == "accept" {
+			newInput = map[string]interface{}{input.FieldName + "Res": 1}
+		} else {
+			newInput = map[string]interface{}{input.FieldName + "Res": 0}
+			value = 0
+		}
+		docRef := h.apiContext.Store.Doc("users/" + input.Uid)
+		batch.Set(docRef, map[string]interface{}{"KycDocs": newInput}, firestore.MergeAll)
+
+		// send notice
+		name := GetFriendlyName(input.FieldName)
+		msg := ""
+		if input.Status == "accept" {
+			msg = fmt.Sprintf("Your %s document uploaded on %s has been accepted.", name, time.Unix(input.FieldTime, 0).Format(`15:04 | 02-01-2006`))
+		} else {
+			msg = fmt.Sprintf("Your %s document uploaded on %s has been declined.", name, time.Unix(input.FieldTime, 0).Format(`15:04 | 02-01-2006`))
+		}
+		title := "KYC documents approval status"
+		mail.SendNoticeMail(input.Email, input.Name, title, []string{msg})
+
+		notice := map[string]interface{}{
+			"title":  title,
+			"body":   msg,
+			"isRead": false,
+			"time":   time.Now().Unix(),
+		}
+		docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(input.Uid).NewDoc()
+		batch.Set(docRef, notice)
+		// Set unread general
+		docRef = h.apiContext.Store.Doc("users_meta/" + input.Uid)
+		batch.Update(docRef, []firestore.Update{
+			{Path: "UrGeneral", Value: firestore.Increment(1)},
+		})
+
+		_, err = batch.Commit(ctx)
+		if err != nil {
+			output = Output{Valid: false, ErrCode: INTERNAL_ERROR, Message: "unable to udpate audit result data"}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+
+		// Check whether user documents are all approved
+		userInfo, _ := GetUserByField(h.apiContext.Store, UID, input.Uid)
+		if userInfo == nil {
+			output = Output{Valid: false, ErrCode: INVALID_UNAME_PASSWORD, Message: "User does not exist."}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+		ret, _ := VerifyKycAuditResult(userInfo)
+		if ret == 0 {
+			var auditRes map[string]interface{}
+			auditRes = map[string]interface{}{"Status": "Approved"}
+			docRef := h.apiContext.Store.Doc("users/" + input.Uid)
+			batch.Set(docRef, auditRes, firestore.MergeAll)
+
+			docRef = h.apiContext.Store.Doc("users_meta/" + input.Uid)
+			batch.Set(docRef, auditRes, firestore.MergeAll)
+
+			// send notice
+
+			msg := ""
+			if input.Status == "accept" {
+				msg = fmt.Sprintf("Your KYC documents have been auditted and accepted. You can now user the Grayll Services.")
+			} else {
+				msg = fmt.Sprintf("Your KYC documents have been auditted and declined. Please check the our review notification and upload again.")
+			}
+			title := "KYC documents approval status"
+			mail.SendNoticeMail(input.Email, input.Name, title, []string{msg})
+
+			notice := map[string]interface{}{
+				"title":  title,
+				"body":   msg,
+				"isRead": false,
+				"time":   time.Now().Unix(),
+			}
+			docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(input.Uid).NewDoc()
+			batch.Set(docRef, notice)
+			// Set unread general
+			docRef = h.apiContext.Store.Doc("users_meta/" + input.Uid)
+			batch.Update(docRef, []firestore.Update{
+				{Path: "UrGeneral", Value: firestore.Increment(1)},
+			})
+			_, err = batch.Commit(ctx)
+
+			if err != nil {
+				log.Println("unable to udpate audit result data")
+			}
+			output = Output{Valid: true, FieldName: input.FieldName + "Res", Value: value, AuditRes: "Approved"}
+		} else {
+			output = Output{Valid: true, FieldName: input.FieldName + "Res", Value: value, AuditRes: "UnApproved"}
+		}
+		c.JSON(http.StatusOK, output)
+	}
+}
+
 func (h UserHandler) LoginAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user := new(models.UserLogin)
@@ -339,50 +492,52 @@ func (h UserHandler) LoginAdmin() gin.HandlerFunc {
 							"city":      city,
 							"country":   country,
 						}
-						err = mail.SendMail(userInfo["Email"].(string), userInfo["Name"].(string), ConfirmIpSub, ConfirmIp, encodeStr, h.apiContext.Config.Host, mores)
+						err = mail.SendMail(userInfo["Email"].(string), userInfo["Name"].(string), ConfirmIpSub, ConfirmIp, encodeStr, "https://admin.grayll.io", mores)
 						if err != nil {
 							GinRespond(c, http.StatusOK, INTERNAL_ERROR, "Can not login right now. Please try again later.")
+							log.Println("ADMIN - Can not send admin confirm ip mail", err)
 							isConfirmIp = true
 							return
 						}
+						log.Println("ADMIN - sent admin confirm ip mail", err)
 						GinRespond(c, http.StatusOK, IP_CONFIRM, "Need to confirm Ip before login")
 
 						// Send app and push notices
 						title := "GRAYLL | IP Address Verification"
 						body := fmt.Sprintf("This IP address %s is unknown! An IP address verification link has been sent to your email.", currentIp)
 						notice := map[string]interface{}{
-							"type":    "general",
-							"title":   title,
-							"isRead":  false,
-							"body":    body,
-							"time":    time.Now().Unix(),
-							"vibrate": []int32{100, 50, 100},
-							"icon":    "https://app.grayll.io/favicon.ico",
-							"data": map[string]interface{}{
-								"url": h.apiContext.Config.Host + "/notifications/overview",
-							},
+							"type":   "general",
+							"title":  title,
+							"isRead": false,
+							"body":   body,
+							"time":   time.Now().Unix(),
+							// "vibrate": []int32{100, 50, 100},
+							// "icon":    "https://app.grayll.io/favicon.ico",
+							// "data": map[string]interface{}{
+							// 	"url": h.apiContext.Config.Host + "/notifications/overview",
+							// },
 						}
 
-						go func() {
-							subs, err := h.apiContext.Cache.GetUserSubs(uid)
-							if err == nil && subs != "" {
-								//log.Println("subs: ", subs)
-								noticeData := map[string]interface{}{
-									"notification": notice,
-								}
-								webpushSub := webpush.Subscription{}
-								err = json.Unmarshal([]byte(subs), &webpushSub)
-								if err != nil {
-									log.Println("Unmarshal subscription from redis error: ", err)
-									return
-								}
-								err = PushNotice(noticeData, &webpushSub)
-								if err != nil {
-									log.Println("PushNotice error: ", err)
-									//return
-								}
-							}
-						}()
+						// go func() {
+						// 	subs, err := h.apiContext.Cache.GetUserSubs(uid)
+						// 	if err == nil && subs != "" {
+						// 		//log.Println("subs: ", subs)
+						// 		noticeData := map[string]interface{}{
+						// 			"notification": notice,
+						// 		}
+						// 		webpushSub := webpush.Subscription{}
+						// 		err = json.Unmarshal([]byte(subs), &webpushSub)
+						// 		if err != nil {
+						// 			log.Println("Unmarshal subscription from redis error: ", err)
+						// 			return
+						// 		}
+						// 		err = PushNotice(noticeData, &webpushSub)
+						// 		if err != nil {
+						// 			log.Println("PushNotice error: ", err)
+						// 			//return
+						// 		}
+						// 	}
+						// }()
 
 						// Save to firestore
 						docRef := h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()

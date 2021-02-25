@@ -29,6 +29,377 @@ import (
 	build "github.com/stellar/go/txnbuild"
 )
 
+func VerifyKycStatus(userInfo map[string]interface{}) (int, string) {
+
+	var ok, ok1, ok2, ok3, ok4, ok5 bool
+	msg := ""
+	kyc, okm := userInfo["Kyc"]
+	if !okm {
+		return 1, msg
+	}
+
+	kycDoc, okn := userInfo["KycDocs"]
+	if !okn {
+		return 2, msg
+	}
+	kycMap := kyc.(map[string]interface{})
+	//kycMap := kyc.(map[string]interface{})
+	kycDocMap := kycDoc.(map[string]interface{})
+
+	_, ok = kycDocMap[GovPassport]
+	_, ok1 = kycDocMap[GovNationalIdCard]
+	_, ok2 = kycDocMap[GovDriverLicense]
+	if !(ok || ok1 || ok2) {
+		// Lack of gov id
+		msg = "One of GovermentID"
+	}
+	_, ok = kycDocMap[Income6MPaySlips]
+	_, ok1 = kycDocMap[Income6MBankStt]
+	_, ok2 = kycDocMap[Income2YTaxReturns]
+
+	if !(ok || ok1) {
+		// Lack of
+		msg = msg + ", Income 6 months pays slip or Income 6 months bank statement"
+	}
+	if !ok2 {
+		msg = msg + ", Income 2 year tax returns"
+	}
+
+	//log.Println("income:", ok, ok1, ok2, msg)
+	// at least two docs
+	sum := 0
+	submsg := ""
+	if _, ok = kycDocMap[AddressUtilityBill]; ok {
+		sum += 1
+		submsg = "Address Utility Bill"
+	}
+	if _, ok1 = kycDocMap[AddressBankStt]; ok1 {
+		sum += 1
+		submsg = "Address Bank Statement"
+	}
+	if _, ok2 = kycDocMap[AddressRentalAgreement]; ok2 {
+		sum += 1
+		submsg = "Address Rental/Lease Agreement"
+	}
+	if _, ok3 = kycDocMap[AddressPropertyTaxReceipt]; ok3 {
+		sum += 1
+		submsg = "Address Property Tax Receipt"
+	}
+	if _, ok4 = kycDocMap[AddressTaxReturn]; ok4 {
+		sum += 1
+		submsg = "Address Tax Return"
+	}
+	log.Println("sum:", sum, ok, ok1, ok2, ok3, ok4)
+	if sum == 1 {
+		msg = msg + ", One more Address document apart from " + submsg
+	}
+	if sum == 0 {
+		msg = msg + ", Two Address documents"
+	}
+	_, ok = kycDocMap[AssetsShareStockCert]
+	_, ok1 = kycDocMap[Assets2MBankAccStt]
+	_, ok2 = kycDocMap[Assets2MRetireAccStt]
+	_, ok3 = kycDocMap[Assets2MInvestAccStt]
+
+	if !(ok || ok1 || ok2 || ok3) {
+		msg = msg + ", One of Asset documents"
+	}
+
+	if kycMap["AppType"].(string) != "Personal" {
+		_, ok = userInfo["KycCom"]
+		if !ok {
+			return 3, ""
+		}
+
+		if _, ok = kycDocMap[CertIncorporation]; !ok {
+			msg = msg + "Certificates of Incorporation/Formation"
+		}
+		if _, ok1 = kycDocMap[Company2YTaxReturns]; !ok1 {
+			msg = msg + ", Company Last 2 Years Tax Returns"
+		}
+		if _, ok2 = kycDocMap[Company2YFinancialStt]; !ok2 {
+			msg = msg + "Company Last 2 Years Financial Statement"
+		}
+		if _, ok3 = kycDocMap[Company2YBalanceSheets]; !ok3 {
+			msg = msg + ", Company Last 2 Years Balance Sheets"
+		}
+		if _, ok4 = kycDocMap[Company6MBankStt]; !ok4 {
+			msg = msg + ", Company Last 6 Months Bank Statement"
+		}
+		if _, ok5 = kycDocMap[Company6MInvestmentAccStt]; !ok5 {
+			msg = msg + ", Company Last 6 Months Investment Account Statement"
+		}
+		if !(ok && ok1 && ok2 && ok3 && ok4 && ok5) {
+			return 0, msg
+		}
+
+	}
+	if strings.HasPrefix(msg, ", ") {
+		msg = msg[2:]
+	}
+	return 0, msg
+
+}
+func VerifyKycAuditResult(userInfo map[string]interface{}) (int, string) {
+
+	var ok, ok1, ok2, ok3, ok4, ok5 bool
+	var govRes, incomeRes, addressRes, assetRes, companyRes bool
+	var res, res1, res2, res3, res4, res5 interface{}
+	msg := ""
+	kyc, okm := userInfo["Kyc"]
+	if !okm {
+		msg := "Not update kyc information"
+		return 1, msg
+	}
+
+	kycDoc, okn := userInfo["KycDocs"]
+	if !okn {
+		msg := "Not upload kyc docs"
+		return 2, msg
+	}
+	kycMap := kyc.(map[string]interface{})
+	//kycMap := kyc.(map[string]interface{})
+	kycDocMap := kycDoc.(map[string]interface{})
+
+	res, ok = kycDocMap[GovPassportRes]
+	res1, ok1 = kycDocMap[GovNationalIdCardRes]
+	res2, ok2 = kycDocMap[GovDriverLicenseRes]
+
+	if (ok && res.(int64) == 1) || (ok1 && res1.(int64) == 1) || (ok2 && res2.(int64) == 1) {
+		govRes = true
+	}
+	res, ok = kycDocMap[Income6MPaySlipsRes]
+	res1, ok1 = kycDocMap[Income6MBankSttRes]
+	res2, ok2 = kycDocMap[Income2YTaxReturnsRes]
+
+	if ((ok && res.(int64) == 1) || (ok1 && res1.(int64) == 1)) && (ok2 && res2.(int64) == 1) {
+		incomeRes = true
+	}
+
+	sum := 0
+	submsg := ""
+	if res, ok = kycDocMap[AddressUtilityBillRes]; ok && res.(int64) == 1 {
+		sum += 1
+		submsg = "Address Utility Bill"
+	}
+	if res1, ok1 = kycDocMap[AddressBankSttRes]; ok1 && res1.(int64) == 1 {
+		sum += 1
+		submsg = "Address Bank Statement"
+	}
+	if res2, ok2 = kycDocMap[AddressRentalAgreementRes]; ok2 && res2.(int64) == 1 {
+		sum += 1
+		submsg = "Address Rental/Lease Agreement"
+	}
+	if res3, ok3 = kycDocMap[AddressPropertyTaxReceiptRes]; ok3 && res3.(int64) == 1 {
+		sum += 1
+		submsg = "Address Property Tax Receipt"
+	}
+	if res4, ok4 = kycDocMap[AddressTaxReturnRes]; ok4 && res4.(int64) == 1 {
+		sum += 1
+		submsg = "Address Tax Return"
+	}
+	log.Println("sum:", sum, ok, ok1, ok2, ok3, ok4)
+	if sum == 1 {
+		msg = msg + ", One more Address document apart from " + submsg
+	}
+	if sum == 0 {
+		msg = msg + ", Two Address documents"
+	}
+	if sum >= 2 {
+		addressRes = true
+	}
+
+	//Asset
+	res, ok = kycDocMap[AssetsShareStockCertRes]
+	res1, ok1 = kycDocMap[Assets2MBankAccSttRes]
+	res2, ok2 = kycDocMap[Assets2MRetireAccSttRes]
+	res3, ok3 = kycDocMap[Assets2MInvestAccSttRes]
+
+	if (ok && res.(int64) == 1) || (ok1 && res1.(int64) == 1) || (ok2 && res2.(int64) == 1) || (ok3 && res3.(int64) == 1) {
+		assetRes = true
+	} else {
+		msg = msg + ", One of Asset documents"
+	}
+
+	if kycMap["AppType"].(string) != "Personal" {
+		_, ok = userInfo["KycCom"]
+		if !ok {
+			return 3, "Not update company information"
+		}
+
+		res, ok = kycDocMap[CertIncorporationRes]
+		//msg = msg + "Certificates of Incorporation/Formation"
+
+		res1, ok1 = kycDocMap[Company2YTaxReturnsRes]
+		//msg = msg + ", Company Last 2 Years Tax Returns"
+
+		res2, ok2 = kycDocMap[Company2YFinancialSttRes]
+		//msg = msg + "Company Last 2 Years Financial Statement"
+
+		res3, ok3 = kycDocMap[Company2YBalanceSheetsRes]
+		//msg = msg + ", Company Last 2 Years Balance Sheets"
+
+		res4, ok4 = kycDocMap[Company6MBankSttRes]
+		//msg = msg + ", Company Last 6 Months Bank Statement"
+
+		res5, ok5 = kycDocMap[Company6MInvestmentAccSttRes]
+		//msg = msg + ", Company Last 6 Months Investment Account Statement"
+
+		if (ok && res.(int64) == 1) && (ok1 && res1.(int64) == 1) && (ok2 && res2.(int64) == 1) && (ok3 && res3.(int64) == 1) && (ok4 && res4.(int64) == 1) && (ok5 && res5.(int64) == 1) {
+			companyRes = true
+		} else {
+			msg = msg + ", One of Asset documents"
+		}
+		//
+		// if res, ok = kycDocMap[CertIncorporationRes]; !ok {
+		// 	msg = msg + "Certificates of Incorporation/Formation"
+		// }
+		// if _, ok1 = kycDocMap[Company2YTaxReturnsRes]; !ok1 {
+		// 	msg = msg + ", Company Last 2 Years Tax Returns"
+		// }
+		// if _, ok2 = kycDocMap[Company2YFinancialSttRes]; !ok2 {
+		// 	msg = msg + "Company Last 2 Years Financial Statement"
+		// }
+		// if _, ok3 = kycDocMap[Company2YBalanceSheetsRes]; !ok3 {
+		// 	msg = msg + ", Company Last 2 Years Balance Sheets"
+		// }
+		// if _, ok4 = kycDocMap[Company6MBankSttRes]; !ok4 {
+		// 	msg = msg + ", Company Last 6 Months Bank Statement"
+		// }
+		// if _, ok5 = kycDocMap[Company6MInvestmentAccSttRes]; !ok5 {
+		// 	msg = msg + ", Company Last 6 Months Investment Account Statement"
+		// }
+		// if !(ok && ok1 && ok2 && ok3 && ok4 && ok5) {
+		// 	return 0, msg
+		// }
+
+	}
+	if strings.HasPrefix(msg, ", ") {
+		msg = msg[2:]
+	}
+	log.Println("res audit:", govRes, incomeRes, addressRes, assetRes, companyRes)
+	if kycMap["AppType"].(string) == "Personal" {
+		if govRes && incomeRes && addressRes && assetRes {
+			return 0, msg
+		} else {
+			return 100, msg
+		}
+	} else {
+		if govRes && incomeRes && addressRes && assetRes && companyRes {
+			return 0, msg
+		} else {
+			return 100, msg
+
+		}
+	}
+
+}
+func GetFriendlyName(fieldName string) string {
+
+	const (
+		GovPassport       = "GovPassport"
+		GovNationalIdCard = "GovNationalIdCard"
+		GovDriverLicense  = "GovDriverLicense"
+
+		// requires tax return
+		Income6MPaySlips   = "Income6MPaySlips"
+		Income6MBankStt    = "Income6MBankStt"
+		Income2YTaxReturns = "Income2YTaxReturns"
+
+		// requires at least 2 docs
+		AddressUtilityBill        = "AddressUtilityBill"
+		AddressBankStt            = "AddressBankStt"
+		AddressRentalAgreement    = "AddressRentalAgreement"
+		AddressPropertyTaxReceipt = "AddressPropertyTaxReceipt"
+		AddressTaxReturn          = "AddressTaxReturn"
+
+		AssetsShareStockCert = "AssetsShareStockCert"
+		Assets2MBankAccStt   = "Assets2MBankAccStt"
+		Assets2MRetireAccStt = "Assets2MRetireAccStt"
+		Assets2MInvestAccStt = "Assets2MInvestAccStt"
+
+		// company documents
+		CertIncorporation = "CertIncorporation"
+		// require all docs
+		Company2YTaxReturns       = "Company2YTaxReturns"
+		Company2YFinancialStt     = "Company2YFinancialStt"
+		Company2YBalanceSheets    = "Company2YBalanceSheets"
+		Company6MBankStt          = "Company6MBankStt"
+		Company6MInvestmentAccStt = "Company6MInvestmentAccStt"
+	)
+
+	name := ""
+	switch fieldName {
+	case GovPassport:
+		name = "Passport"
+		break
+	case GovNationalIdCard:
+		name = "NationalIdCard"
+		break
+	case GovDriverLicense:
+		name = "Driver License"
+		break
+	case Income6MPaySlips:
+		name = "6 Months Pay Slips (Income)"
+		break
+	case Income6MBankStt:
+		name = "6 Month Bank Statement (Income)"
+		break
+	case Income2YTaxReturns:
+		name = "2 Years Tax Returns (Income)"
+		break
+	case AddressUtilityBill:
+		name = "Address Utility Bill"
+		break
+	case AddressBankStt:
+		name = "Address Bank Statement"
+		break
+	case AddressRentalAgreement:
+		name = "Address Rental/Lease Agreement"
+		break
+	case AddressPropertyTaxReceipt:
+		name = "Address Property Tax Receipt"
+		break
+	case AddressTaxReturn:
+		name = "Address Tax Return"
+		break
+	case AssetsShareStockCert:
+		name = "Share/Stock Certification (Asset)"
+		break
+	case Assets2MBankAccStt:
+		name = "2 Months Bank Account Statement (Asset)"
+		break
+	case Assets2MRetireAccStt:
+		name = "2 Months Retire Account Statement (Asset)"
+		break
+	case Assets2MInvestAccStt:
+		name = "2 Months Investment Account Statement (Asset)"
+		break
+		// company
+	case CertIncorporation:
+		name = "Certification Incorporation (Company)"
+		break
+	case Company2YTaxReturns:
+		name = "2 Years Tax Returns (Company)"
+		break
+	case Company2YFinancialStt:
+		name = "2 Years Financial Statement (Company)"
+		break
+	case Company2YBalanceSheets:
+		name = "2 Years Balance Sheets (Company)"
+		break
+	case Company6MBankStt:
+		name = "6 Months Bank Statement (Company)"
+		break
+	case Company6MInvestmentAccStt:
+		name = "6 Months Investment Account Statement (Company)"
+		break
+
+	}
+
+	return name
+
+}
 func VerifyEmailNeverBounce(neverBounceApiKey, email string) error {
 	client := neverbounce.New(neverBounceApiKey)
 	client.SetAPIVersion("v4.1")
@@ -182,6 +553,10 @@ type LedgerPayment struct {
 func MergeAccount(mergedAccount, loanSeed string) error {
 	_, _, err := stellar.MergeAccount(mergedAccount, loanSeed, build.CreditAsset{Code: "GRX", Issuer: "GAQQZMUNB7UCL2SXHU6H7RZVNFL6PI4YXLPJNBXMOZXB2LOQ7LODH333"})
 	return err
+}
+func MergeAccountNChangeTrust(mergedAccount, loanSeed string) error {
+	//_, _, err := stellar.MergeAccountNChangeTrust(mergedAccount, loanSeed, build.CreditAsset{Code: "GRX", Issuer: "GAQQZMUNB7UCL2SXHU6H7RZVNFL6PI4YXLPJNBXMOZXB2LOQ7LODH333"})
+	return nil
 }
 func ParseLedgerData(url string) (*LedgerPayment, error) {
 	ledger := LedgerPayment{}
