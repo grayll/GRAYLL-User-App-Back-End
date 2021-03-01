@@ -238,6 +238,7 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 		v1admin.GET("/users/getusersmeta/:cursor", userHandler.GetUsersMeta())
 		v1admin.POST("/users/setstatus", userHandler.SetStatus())
 		v1admin.GET("/users/getuserdata/:searchStr", userHandler.GetUserData())
+		v1admin.POST("/users/firebaseauth", userHandler.AdminFirebaseAuth())
 
 		v1admin.POST("/users/verifykycdoc", userHandler.VerifyKycDoc())
 	}
@@ -297,6 +298,7 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 		v1.POST("/users/updatekyc", userHandler.UpdateKyc())
 		v1.POST("/users/updatekyccom", userHandler.UpdateKycCom())
 		v1.POST("/users/updatekycdoc", userHandler.UpdateKycDoc())
+		v1.POST("/users/firebaseauth", userHandler.FirebaseAuth())
 
 	}
 	return router

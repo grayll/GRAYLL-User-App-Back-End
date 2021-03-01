@@ -32,6 +32,10 @@ import (
 	stellar "github.com/huyntsgs/stellar-service"
 	build "github.com/stellar/go/txnbuild"
 
+	firebase "firebase.google.com/go"
+
+	"google.golang.org/api/option"
+
 	"google.golang.org/api/iterator"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -2509,6 +2513,19 @@ func (h UserHandler) UpdateKycDoc() gin.HandlerFunc {
 			c.JSON(http.StatusOK, output)
 			return
 		}
+		uid := c.GetString(UID)
+		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+		if userInfo == nil {
+			output = Output{Valid: false, ErrCode: INVALID_UNAME_PASSWORD, Message: "User does not exist."}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+		if val, ok := userInfo["Status"]; ok {
+			if val.(string) == "Approved" {
+				output = Output{Valid: false, ErrCode: INVALID_PARAMS, Message: "The KYC documents has been approved."}
+				c.JSON(http.StatusOK, output)
+			}
+		}
 
 		for k, _ := range input {
 			newKey := k + "Time"
@@ -2517,17 +2534,9 @@ func (h UserHandler) UpdateKycDoc() gin.HandlerFunc {
 		}
 		batch := h.apiContext.Store.Batch()
 
-		uid := c.GetString(UID)
-
 		docRef := h.apiContext.Store.Doc("users/" + uid)
 		batch.Set(docRef, map[string]interface{}{"KycDocs": input}, firestore.MergeAll)
 
-		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
-		if userInfo == nil {
-			output = Output{Valid: false, ErrCode: INVALID_UNAME_PASSWORD, Message: "User does not exist."}
-			c.JSON(http.StatusOK, output)
-			return
-		}
 		ret, msg := VerifyKycStatus(userInfo)
 		//log.Println("verify result ret,msg: ", ret, msg)
 		if ret == 0 && msg == "" {
@@ -2548,7 +2557,7 @@ func (h UserHandler) UpdateKycDoc() gin.HandlerFunc {
 				"isRead": false,
 				"time":   time.Now().Unix(),
 			}
-			docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(input.Uid).NewDoc()
+			docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
 			batch.Set(docRef, notice)
 
 		}
@@ -2596,6 +2605,12 @@ func (h UserHandler) UpdateKyc() gin.HandlerFunc {
 			return
 		}
 
+		if val, ok := userInfo["Status"]; ok {
+			if val.(string) == "Approved" {
+				output = Output{Valid: false, ErrCode: INVALID_PARAMS, Message: "The KYC documents has been approved."}
+				c.JSON(http.StatusOK, output)
+			}
+		}
 		_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{"Kyc": input}, firestore.MergeAll)
 		if err != nil {
 			output = Output{Valid: false, ErrCode: INTERNAL_ERROR, Message: "Can not update profile."}
@@ -2625,7 +2640,6 @@ func (h UserHandler) UpdateKycCom() gin.HandlerFunc {
 			c.JSON(http.StatusOK, output)
 			return
 		}
-		log.Println(input)
 
 		if govalidator.IsNull(input.Name) || (govalidator.IsNull(input.Address1) && govalidator.IsNull(input.Address2)) || govalidator.IsNull(input.Registration) ||
 			govalidator.IsNull(input.City) || govalidator.IsNull(input.Country) {
@@ -2640,6 +2654,14 @@ func (h UserHandler) UpdateKycCom() gin.HandlerFunc {
 			c.JSON(http.StatusOK, output)
 			return
 		}
+
+		if val, ok := userInfo["Status"]; ok {
+			if val.(string) == "Approved" {
+				output = Output{Valid: false, ErrCode: INVALID_PARAMS, Message: "The KYC documents has been approved."}
+				c.JSON(http.StatusOK, output)
+			}
+		}
+
 		status := map[string]interface{}{"AppType": "Company"}
 		_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{"KycCom": input, "Kyc": status}, firestore.MergeAll)
 		if err != nil {
@@ -2652,6 +2674,46 @@ func (h UserHandler) UpdateKycCom() gin.HandlerFunc {
 		c.JSON(http.StatusOK, output)
 	}
 }
+func (h UserHandler) FirebaseAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		type Output struct {
+			Valid   bool   `json:"valid"`
+			Message string `json:"message"`
+			ErrCode string `json:"errCode"`
+			Token   string `json:"token"`
+		}
+		var output Output
+		uid := c.GetString(UID)
+		opt := option.WithCredentialsFile("grayll-kyc-firebase-adminsdk-g2ga0-8b0dc5462e.json")
+		app, err := firebase.NewApp(context.Background(), nil, opt)
+		if err != nil {
+			log.Println("Can not create new firebase app: %v\n", err)
+			output = Output{Valid: false, ErrCode: INTERNAL_ERROR, Message: "Can not create new firebase app"}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+		client, err := app.Auth(context.Background())
+		if err != nil {
+			log.Println("Can not create new firebase app: %v\n", err)
+			output = Output{Valid: false, ErrCode: INTERNAL_ERROR, Message: "Can not authenticate firebase app"}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+
+		token, err := client.CustomToken(context.Background(), uid)
+		if err != nil {
+			log.Println("Can not create new firebase app: %v\n", err)
+			output = Output{Valid: false, ErrCode: INTERNAL_ERROR, Message: "Can not create firebase authentication token"}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+
+		output = Output{Valid: true, Token: token}
+		c.JSON(http.StatusOK, output)
+	}
+}
+
 func (h UserHandler) UpdateProfile() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input struct {

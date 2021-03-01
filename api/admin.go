@@ -28,6 +28,9 @@ import (
 	"github.com/gin-gonic/gin"
 	//"google.golang.org/grpc"
 	//"google.golang.org/grpc/codes"
+	firebase "firebase.google.com/go"
+
+	"google.golang.org/api/option"
 )
 
 func (h UserHandler) SetStatus() gin.HandlerFunc {
@@ -205,9 +208,6 @@ func (h UserHandler) GetUsersMeta() gin.HandlerFunc {
 			}
 
 			for _, doc := range userDocs {
-				// if strings.Contains(doc.Data()["PublicKey"].(string), "GAUBL3") {
-				// 	log.Println("uid:", doc.Data()["UserId"].(string))
-				// }
 				users = append(users, doc.Data())
 			}
 		} else {
@@ -705,5 +705,48 @@ func (h UserHandler) LoginAdmin() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{
 			"errCode": SUCCESS, "user": userInfo, "userMeta": userMeta, "userBasicInfo": userBasicInfo, "token": tokenStr, "tokenExpiredTime": tokeExpTime,
 		})
+	}
+}
+
+func (h UserHandler) AdminFirebaseAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		type Output struct {
+			Valid   bool   `json:"valid"`
+			Message string `json:"message"`
+			ErrCode string `json:"errCode"`
+			Token   string `json:"token"`
+		}
+		var output Output
+		uid := c.GetString(UID)
+		opt := option.WithCredentialsFile("grayll-kyc-firebase-adminsdk-g2ga0-8b0dc5462e.json")
+		app, err := firebase.NewApp(context.Background(), nil, opt)
+		if err != nil {
+			log.Println("Can not create new firebase app: %v\n", err)
+			output = Output{Valid: false, ErrCode: INTERNAL_ERROR, Message: "Can not create new firebase app"}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+		client, err := app.Auth(context.Background())
+		if err != nil {
+			log.Println("Can not create new firebase app: %v\n", err)
+			output = Output{Valid: false, ErrCode: INTERNAL_ERROR, Message: "Can not authenticate firebase app"}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+		claims := map[string]interface{}{
+			"isAdmin": true,
+		}
+
+		token, err := client.CustomTokenWithClaims(context.Background(), uid, claims)
+		if err != nil {
+			log.Println("Can not create new firebase app: %v\n", err)
+			output = Output{Valid: false, ErrCode: INTERNAL_ERROR, Message: "Can not create firebase authentication token"}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+
+		output = Output{Valid: true, Token: token}
+		c.JSON(http.StatusOK, output)
 	}
 }
