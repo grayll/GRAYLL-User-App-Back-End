@@ -1,11 +1,379 @@
 package api
 
 import (
+	"time"
 	//"encoding"
 	"encoding/base64"
 	"fmt"
 	//"time"
 )
+
+// func GenDocAccepted(name, lname, userId, accountId, appType, fieldName string, xlm, grx, algoValue float64) (string, string, []string) {
+// 	docName := GetFriendlyName(fieldName)
+// 	title := fmt.Sprintf(`GRAYLL | %s %s | %s | %s Submission Accepted`, name, lname, appType)
+// 	contents := []string{
+// 		time.Unix(time.Now().Unix(), 0).Format(`15:04 | 02-01-2006`),
+// 		fmt.Sprintf(`%s %s has completed their %s  KYC submission for an administrator to review.`, name, lname, appType),
+
+// 		`User Account: ` + accountId,
+
+// 		`GRAYLL User ID: ` + userId,
+
+// 		`====================`,
+
+// 		fmt.Sprintf(`XLM Balance | $ %.4f`, xlm),
+// 		fmt.Sprintf(`GRX Balance | $ %.4f`, grx),
+// 		fmt.Sprintf(`USD Algo Position Value | $ %.4f`, algoValue),
+// 	}
+
+// 	content := ""
+// 	for i, sent := range contents {
+// 		content = content + sent
+// 		if i == 0 {
+// 			content = content + ". "
+// 		}
+// 	}
+
+// 	return title, content, contents
+// }
+
+func GenDocAcceptedGrayll(name, lname, userId, accountId, appType, docName string, xlm, grx, algoValue float64) (string, string, []string) {
+	title := fmt.Sprintf(`GRAYLL KYC | %s %s | %s KYC Document | %s Submission Accepted`, name, lname, appType, docName)
+	contents := []string{
+		time.Unix(time.Now().Unix(), 0).Format(`15:04 | 02-01-2006`),
+		fmt.Sprintf(`A KYC Administrator has accepted %s for a %s KYC submission of %s %s.`, docName, appType, name, lname),
+
+		`User Account: ` + accountId,
+
+		`GRAYLL User ID: ` + userId,
+
+		`====================`,
+
+		fmt.Sprintf(`XLM Balance | $ %.4f`, xlm),
+		fmt.Sprintf(`GRX Balance | $ %.4f`, grx),
+		fmt.Sprintf(`USD Algo Position Value | $ %.4f`, algoValue),
+	}
+	content := ""
+	for i, sent := range contents {
+		content = content + sent
+		if i == 0 {
+			content = content + ". "
+		}
+	}
+
+	return title, content, contents
+}
+func GenDocDeclined(appType, docName, deadline string) (string, string, []string) {
+
+	title := fmt.Sprintf(`GRAYLL KYC | %s KYC Document | %s Submission Declined`, appType, docName)
+
+	contents := []string{
+		time.Unix(time.Now().Unix(), 0).Format(`15:04 | 02-01-2006`),
+		fmt.Sprintf(`A KYC Administrator has declined %s for your %s KYC submission.`, docName, appType),
+		fmt.Sprintf(`Please resubmit a valid document as soon as possible to meet the KYC deadline of %s.`, deadline),
+
+		`=============================================`,
+
+		`GRAYLL is legally required for every existing and new client to complete a Know Your Customer form to comply with various Government regulations around the world. Many legal jurisdictions are increasing regulations which have some positive and negative aspects, this means we need to review personal and financial information to verify your identity and eligibility to use GRAYLL Services.`,
+
+		`GRAYLL offers advanced and sophisticated financial technology services that some jurisdictions do not deem appropriate for persons or entities that are not considered accredited or certified investors.`,
+
+		`If you do not complete the KYC process within 60 days, your account will eventually be closed. We will send you periodic notifications to remind you prior to any account closure.`,
+
+		`All information you provide is for verification purposes only by appropriate persons and will be kept strictly private and confidential, you may review our general Privacy Policy here: https://grayll.io/privacy`,
+
+		`If you choose to not complete the KYC process or have not submitted all required information by the deadline an auditor will net your GRAYLL App account value.`,
+
+		`If after review of a fully completed KYC submission you are not considered an accredited or certified investor an auditor will net your GRAYLL App account value.`,
+
+		`Netting your GRAYLL App account means that you will receive any difference of the USD value of GRX purchased within the GRAYLL App only (not on exchanges) and the USD value of GRX sold by you.`,
+
+		`If the USD value of the GRX you have sold is greater than the USD of the GRX you have purchased you will not receive anything. No claims can be made on any profits made by the GRAYLL Intelligence or Algorithmic Services.`,
+
+		`The sooner you complete KYC the sooner we can start the audit process, however it is very important to note that before we are legally able to transfer any value in USDC or XLM to you, 	we must at least have received a Government Issued ID and a Proof of Address via the KYC application section in the GRAYLL App. If you do not want to submit any KYC information you may continue to trade GRX on Stellar DEX exchanges.`,
+
+		`Please note that the length and difficulty of an audit process depends on the number of transfers and transactions within the GRAYLL App account and any other linked accounts someone may have used to buy or sell GRX.`,
+
+		`We anticipate that the audit process of all GRAYLL App users will take 4 to 6 months in total. If you have any questions please consult our FAQs on GRAYLL Support https://support.grayll.io/en/ and if you cannot find the answers you are looking for there you may consult GRAYLL Client Support via the messenger.`,
+	}
+
+	content := ""
+	for i, sent := range contents {
+		content = content + sent
+		if i == 0 {
+			content = content + ". "
+		}
+	}
+
+	return title, content, contents
+}
+func GenDocDeclinedGrayll(name, lname, userId, accountId, appType, docName string, xlm, grx, algoValue float64) (string, string, []string) {
+
+	title := fmt.Sprintf(`GRAYLL KYC | %s %s | %s KYC Document | %s Submission Declined`, name, lname, appType, docName)
+	contents := []string{
+		time.Unix(time.Now().Unix(), 0).Format(`15:04 | 02-01-2006`),
+		fmt.Sprintf(`A KYC Administrator has declined %s for a %s KYC submission of %s %s.`, docName, appType, name, lname),
+
+		`User Account: ` + accountId,
+
+		`GRAYLL User ID: ` + userId,
+
+		`====================`,
+
+		fmt.Sprintf(`XLM Balance | $ %.4f`, xlm),
+		fmt.Sprintf(`GRX Balance | $ %.4f`, grx),
+		fmt.Sprintf(`USD Algo Position Value | $ %.4f`, algoValue),
+	}
+	content := ""
+	for i, sent := range contents {
+		content = content + sent
+		if i == 0 {
+			content = content + ". "
+		}
+	}
+
+	return title, content, contents
+}
+
+func GenSubmitCompletedGrayll(name, lname, userId, accountId, appType string, xlm, grx, algoValue float64) (string, string, []string) {
+
+	title := fmt.Sprintf(`GRAYLL | %s %s | %s KYC Submission Completed for Admin Review `, name, lname, appType)
+	contents := []string{
+		time.Unix(time.Now().Unix(), 0).Format(`15:04 | 02-01-2006`),
+		fmt.Sprintf(`%s %s has completed their %s  KYC submission for an administrator to review.`, name, lname, appType),
+
+		`User Account: ` + accountId,
+
+		`GRAYLL User ID: ` + userId,
+
+		`====================`,
+
+		fmt.Sprintf(`XLM Balance | $ %.4f`, xlm),
+		fmt.Sprintf(`GRX Balance | $ %.4f`, grx),
+		fmt.Sprintf(`USD Algo Position Value | $ %.4f`, algoValue),
+	}
+
+	content := ""
+	for i, sent := range contents {
+		content = content + sent
+		if i == 0 {
+			content = content + ". "
+		}
+	}
+
+	return title, content, contents
+}
+func GenSubmitCompleted(appType string) (string, string, []string) {
+	title := fmt.Sprintf(`%s KYC Document Submission Completed`, appType)
+
+	contents := []string{
+		time.Unix(time.Now().Unix(), 0).Format(`15:04 | 02-01-2006`),
+		fmt.Sprintf(`You have submitted all required documents for your %s KYC review.`, appType),
+
+		`An administrator will review your documents within approximately 14 days, if any documents are declined or invalid you will receive notifications to re-submit those documents.`,
+
+		`All information you provide is for verification purposes only by appropriate persons and will be kept strictly private and confidential, you may review our general Privacy Policy here: https://grayll.io/privacy`,
+
+		`If after review of a fully completed KYC submission you are not considered an accredited or certified investor an auditor will net your GRAYLL App account value.`,
+
+		`Netting your GRAYLL App account means that you will receive any difference of the USD value of GRX purchased within the GRAYLL App only (not on exchanges) and the USD value of GRX sold by you.`,
+
+		`If the USD value of the GRX you have sold is greater than the USD of the GRX you have purchased you will not receive anything. No claims can be made on any profits made by the GRAYLL Intelligence or Algorithmic Services.`,
+
+		`It is very important to note that before we are legally able to transfer any value in USDC or XLM to you, we must at least have received a Government Issued ID and a Proof of Address via the KYC application section in the GRAYLL App.`,
+
+		`If you do not want to submit any KYC information you may continue to trade GRX on Stellar DEX exchanges.`,
+
+		`Please note that the length and difficulty of an audit process depends on the number of transfers and transactions within the GRAYLL App account and any other linked accounts someone may have used to buy or sell GRX.`,
+
+		`We anticipate that the audit process of all GRAYLL App users will take 4 to 6 months in total. If you have any questions please consult our FAQs on GRAYLL Support https://support.grayll.io/en/ and if you cannot find the answers you are looking for there you may consult GRAYLL Client Support via the messenger.`,
+	}
+	content := ""
+	for i, sent := range contents {
+		content = content + sent
+		if i == 0 {
+			content = content + ". "
+		}
+	}
+
+	return title, content, contents
+}
+
+func GenDocSubmitOk(appType, docName string, lackDocs []string) (string, string, []string) {
+
+	title := fmt.Sprintf(`%s KYC Document Submission Successful`, appType)
+
+	contents := []string{
+		time.Unix(time.Now().Unix(), 0).Format(`15:04 | 02-01-2006`),
+		fmt.Sprintf(`Your %s document submission for your %s KYC review was successful.`, docName, appType),
+
+		`You will also still need to submit the following documents to complete your GRAYLL KYC review:`,
+	}
+
+	contents1 := []string{
+
+		`=============================================`,
+
+		`GRAYLL is legally required for every existing and new client to complete a Know Your Customer form to comply with various Government regulations around the world. Many legal jurisdictions are increasing regulations which have some positive and negative aspects, this means we need to review personal and financial information to verify your identity and eligibility to use GRAYLL Services.`,
+
+		`GRAYLL offers advanced and sophisticated financial technology services that some jurisdictions do not deem appropriate for persons or entities that are not considered accredited or certified investors.`,
+
+		`If you do not complete the KYC process within 60 days, your account will eventually be closed. We will send you periodic notifications to remind you prior to any account closure.`,
+
+		`All information you provide is for verification purposes only by appropriate persons and will be kept strictly private and confidential, you may review our general Privacy Policy here: https://grayll.io/privacy`,
+
+		`If you choose to not complete the KYC process or have not submitted all required information by the deadline an auditor will net your GRAYLL App account value.`,
+
+		`If after review of a fully completed KYC submission you are not considered an accredited or certified investor an auditor will net your GRAYLL App account value.`,
+
+		`Netting your GRAYLL App account means that you will receive any difference of the USD value of GRX purchased within the GRAYLL App only (not on exchanges) and the USD value of GRX sold by you.`,
+
+		`If the USD value of the GRX you have sold is greater than the USD of the GRX you have purchased you will not receive anything. No claims can be made on any profits made by the GRAYLL Intelligence or Algorithmic Services.`,
+
+		`The sooner you complete KYC the sooner we can start the audit process, however it is very important to note that before we are legally able to transfer any value in USDC or XLM to you, 	we must at least have received a Government Issued ID and a Proof of Address via the KYC application section in the GRAYLL App. If you do not want to submit any KYC information you may continue to trade GRX on Stellar DEX exchanges.`,
+
+		`Please note that the length and difficulty of an audit process depends on the number of transfers and transactions within the GRAYLL App account and any other linked accounts someone may have used to buy or sell GRX.`,
+
+		`We anticipate that the audit process of all GRAYLL App users will take 4 to 6 months in total. If you have any questions please consult our FAQs on GRAYLL Support https://support.grayll.io/en/ and if you cannot find the answers you are looking for there you may consult GRAYLL Client Support via the messenger.`,
+	}
+
+	contents = append(contents, lackDocs...)
+	contents = append(contents, contents1...)
+
+	content := ""
+	for i, sent := range contents {
+		content = content + sent
+		if i == 0 {
+			content = content + ". "
+		}
+	}
+
+	return title, content, contents
+}
+
+func GenFinalDeclinedGrayll(name, lname, userId, accountId, appType string, xlm, grx, algoValue float64) (string, string, []string) {
+
+	title := fmt.Sprintf(`GRAYLL | KYC %s Application | %s %s | Declined`, appType, name, lname)
+	contents := []string{
+		time.Unix(time.Now().Unix(), 0).Format(`15:04 | 02-01-2006`),
+		fmt.Sprintf(`A KYC Administrator has declined the %s KYC Application of %s %s.`, appType, name, lname),
+
+		`User Account: ` + accountId,
+
+		`GRAYLL User ID: ` + userId,
+
+		`====================`,
+
+		fmt.Sprintf(`XLM Balance | $ %.4f`, xlm),
+		fmt.Sprintf(`GRX Balance | $ %.4f`, grx),
+		fmt.Sprintf(`USD Algo Position Value | $ %.4f`, algoValue),
+	}
+	content := ""
+	for i, sent := range contents {
+		content = content + sent
+		if i == 0 {
+			content = content + ". "
+		}
+	}
+
+	return title, content, contents
+}
+
+func GenFinalApproveGrayll(name, lname, userId, accountId, appType string, xlm, grx, algoValue float64) (string, string, []string) {
+
+	title := fmt.Sprintf(`GRAYLL | KYC %s Application | %s %s | Approved`, appType, name, lname)
+	contents := []string{
+		time.Unix(time.Now().Unix(), 0).Format(`15:04 | 02-01-2006`),
+		fmt.Sprintf(`A KYC Administrator has approved the %s KYC Application of %s %s.`, appType, name, lname),
+
+		`User Account: ` + accountId,
+
+		`GRAYLL User ID: ` + userId,
+
+		`====================`,
+
+		fmt.Sprintf(`XLM Balance | $ %.4f`, xlm),
+		fmt.Sprintf(`GRX Balance | $ %.4f`, grx),
+		fmt.Sprintf(`USD Algo Position Value | $ %.4f`, algoValue),
+	}
+	content := ""
+	for i, sent := range contents {
+		content = content + sent
+		if i == 0 {
+			content = content + ". "
+		}
+	}
+
+	return title, content, contents
+}
+
+func GenFinalDeclined(name, lname, userId, accountId, appType string) (string, string, []string) {
+
+	title := fmt.Sprintf(`GRAYLL | KYC %s Application | %s %s | Declined`, appType, name, lname)
+	contents := []string{
+		time.Unix(time.Now().Unix(), 0).Format(`15:04 | 02-01-2006`),
+		fmt.Sprintf(`A KYC Administrator has declined the %s KYC Application completed by %s %s.`, appType, name, lname),
+
+		`User Account: ` + accountId,
+
+		`GRAYLL User ID: ` + userId,
+
+		`  `,
+
+		`After careful review and consideration you do not qualify as an accredited investor within the definition set by the Canadian authorities;`,
+
+		`1) An individual, alone or with a spouse, who has net assets of more than $5 million CAD.`,
+
+		`2) A person registered in Canada, under securities legislation, as a dealer or an adviser.`,
+
+		`An auditor will net your GRAYLL App account value, netting your GRAYLL App account means that you will receive any difference of the USD value of GRX purchased within the GRAYLL App only (not on exchanges) and the USD value of GRX sold by you.`,
+
+		`If the USD value of the GRX you have sold is greater than the USD of the GRX you have purchased you will not receive anything. No claims can be made on any profits made by the GRAYLL Intelligence or Algorithmic Services.`,
+
+		`It is very important to note that before we are legally able to transfer any value in USDC or XLM to you, we must at least have received a Government Issued ID and a Proof of Address via the KYC application section in the GRAYLL App. `,
+
+		`If you do not want to submit any KYC information you may continue to trade GRX on Stellar DEX exchanges.`,
+
+		`Please note that the length and difficulty of an audit process depends on the number of transfers and transactions within the GRAYLL App account and any other linked accounts someone may have used to buy or sell GRX.`,
+
+		`We anticipate that the audit process of all GRAYLL App users will take 4 to 6 months in total. If you have any questions please consult our FAQs on GRAYLL Support https://support.grayll.io/en/ and if you cannot find the answers you are looking for there you may consult GRAYLL Client Support via the messenger.`,
+
+		`Thank you for your time and patience, we hope that in the future we will also provide GRAYLL Services for non-accredited investors.`,
+	}
+	content := ""
+	for i, sent := range contents {
+		content = content + sent
+		if i == 0 {
+			content = content + ". "
+		}
+	}
+
+	return title, content, contents
+}
+
+func GenFinalApprove(name, lname, userId, accountId, appType string) (string, string, []string) {
+
+	title := fmt.Sprintf(`GRAYLL | KYC %s Application | %s %s | Approved`, appType, name, lname)
+	contents := []string{
+		time.Unix(time.Now().Unix(), 0).Format(`15:04 | 02-01-2006`),
+		fmt.Sprintf(`A KYC Administrator has approved the %s KYC Application completed by %s %s.`, appType, name, lname),
+
+		`User Account: ` + accountId,
+
+		`GRAYLL User ID: ` + userId,
+	}
+	content := ""
+	for i, sent := range contents {
+		content = content + sent
+		if i == 0 {
+			content = content + ". "
+		}
+	}
+
+	return title, content, contents
+}
+
+//=========
 
 func GenInvite(uid, name, lname, docId string) (string, string, []string) {
 

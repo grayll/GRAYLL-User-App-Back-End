@@ -2526,8 +2526,9 @@ func (h UserHandler) UpdateKycDoc() gin.HandlerFunc {
 				c.JSON(http.StatusOK, output)
 			}
 		}
-
+		fieldName := ""
 		for k, _ := range input {
+			fieldName = k
 			newKey := k + "Time"
 			input[newKey] = time.Now().Unix()
 			break
@@ -2538,22 +2539,41 @@ func (h UserHandler) UpdateKycDoc() gin.HandlerFunc {
 		batch.Set(docRef, map[string]interface{}{"KycDocs": input}, firestore.MergeAll)
 
 		ret, msg := VerifyKycStatus(userInfo)
+		kyc := userInfo["Kyc"].(map[string]interface{})
 		//log.Println("verify result ret,msg: ", ret, msg)
-		if ret == 0 && msg == "" {
-
+		// All required documents subitted
+		if ret == 0 && len(msg) == 0 {
 			docRef = h.apiContext.Store.Doc("users/" + uid)
 			batch.Set(docRef, map[string]interface{}{"Status": "Submitted"}, firestore.MergeAll)
 
 			docRef = h.apiContext.Store.Doc("users_meta/" + uid)
 			batch.Set(docRef, map[string]interface{}{"Status": "Submitted"}, firestore.MergeAll)
 
-			title := "KYC documents upload status"
-			msg := "You have uploaded all required documents. We will review within 7 days"
-			mail.SendNoticeMail(userInfo["Email"].(string), userInfo["Name"].(string), title, []string{msg})
+			title, content, contents := GenSubmitCompleted(kyc["AppType"].(string))
+			mail.SendNoticeMail(userInfo["Email"].(string), userInfo["Name"].(string), title, contents)
 
 			notice := map[string]interface{}{
 				"title":  title,
-				"body":   msg,
+				"body":   content,
+				"isRead": false,
+				"time":   time.Now().Unix(),
+			}
+			docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
+			batch.Set(docRef, notice)
+
+			pk, xlm, grx, algoValue := h.GetUserValue(uid)
+			title, content, contents = GenSubmitCompletedGrayll(userInfo["Name"].(string), userInfo["LName"].(string), uid, pk, kyc["AppType"].(string), xlm, grx, algoValue)
+			//mail.SendNoticeMail("grayll@grayll.io", "GRAYLL", title, contents)
+			mail.SendNoticeMail("huykbc@gmail.com", "GRAYLL", title, contents)
+
+		} else if len(msg) != 0 {
+			docName := GetFriendlyName(fieldName)
+			title, content, contents := GenDocSubmitOk(kyc["AppType"].(string), docName, msg)
+			mail.SendNoticeMail(userInfo["Email"].(string), userInfo["Name"].(string), title, contents)
+
+			notice := map[string]interface{}{
+				"title":  title,
+				"body":   content,
 				"isRead": false,
 				"time":   time.Now().Unix(),
 			}
@@ -2561,6 +2581,7 @@ func (h UserHandler) UpdateKycDoc() gin.HandlerFunc {
 			batch.Set(docRef, notice)
 
 		}
+
 		_, err = batch.Commit(context.Background())
 		if err != nil {
 			output = Output{Valid: false, ErrCode: INTERNAL_ERROR, Message: "Can not update kyc doc."}

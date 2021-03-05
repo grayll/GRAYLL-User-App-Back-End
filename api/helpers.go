@@ -1,14 +1,13 @@
 package api
 
 import (
+	"context"
 	"crypto/rand"
 	"errors"
 	"log"
 	"strconv"
 	"strings"
 
-	//"bytes"
-	//"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -29,10 +28,10 @@ import (
 	build "github.com/stellar/go/txnbuild"
 )
 
-func VerifyKycStatus(userInfo map[string]interface{}) (int, string) {
+func VerifyKycStatus(userInfo map[string]interface{}) (int, []string) {
 
 	var ok, ok1, ok2, ok3, ok4, ok5 bool
-	msg := ""
+	msg := []string{}
 	kyc, okm := userInfo["Kyc"]
 	if !okm {
 		return 1, msg
@@ -51,7 +50,7 @@ func VerifyKycStatus(userInfo map[string]interface{}) (int, string) {
 	_, ok2 = kycDocMap[GovDriverLicense]
 	if !(ok || ok1 || ok2) {
 		// Lack of gov id
-		msg = "One of GovermentID"
+		msg = append(msg, "One of GovermentID")
 	}
 	_, ok = kycDocMap[Income6MPaySlips]
 	_, ok1 = kycDocMap[Income6MBankStt]
@@ -59,10 +58,10 @@ func VerifyKycStatus(userInfo map[string]interface{}) (int, string) {
 
 	if !(ok || ok1) {
 		// Lack of
-		msg = msg + ", Income 6 months pays slip or Income 6 months bank statement"
+		msg = append(msg, "Income 6 months pays slip or Income 6 months bank statement")
 	}
 	if !ok2 {
-		msg = msg + ", Income 2 year tax returns"
+		msg = append(msg, "Income 2 year tax returns")
 	}
 
 	//log.Println("income:", ok, ok1, ok2, msg)
@@ -91,10 +90,10 @@ func VerifyKycStatus(userInfo map[string]interface{}) (int, string) {
 	}
 	log.Println("sum:", sum, ok, ok1, ok2, ok3, ok4)
 	if sum == 1 {
-		msg = msg + ", One more Address document apart from " + submsg
+		msg = append(msg, "One more Address document apart from "+submsg)
 	}
 	if sum == 0 {
-		msg = msg + ", Two Address documents"
+		msg = append(msg, "Two Address documents")
 	}
 	_, ok = kycDocMap[AssetsShareStockCert]
 	_, ok1 = kycDocMap[Assets2MBankAccStt]
@@ -102,41 +101,39 @@ func VerifyKycStatus(userInfo map[string]interface{}) (int, string) {
 	_, ok3 = kycDocMap[Assets2MInvestAccStt]
 
 	if !(ok || ok1 || ok2 || ok3) {
-		msg = msg + ", One of Asset documents"
+		msg = append(msg, "One of Asset documents")
 	}
 
 	if kycMap["AppType"].(string) != "Personal" {
 		_, ok = userInfo["KycCom"]
 		if !ok {
-			return 3, ""
+			return 3, msg
 		}
 
 		if _, ok = kycDocMap[CertIncorporation]; !ok {
-			msg = msg + "Certificates of Incorporation/Formation"
+			msg = append(msg, "Certificates of Incorporation/Formation")
 		}
 		if _, ok1 = kycDocMap[Company2YTaxReturns]; !ok1 {
-			msg = msg + ", Company Last 2 Years Tax Returns"
+			msg = append(msg, "Company Last 2 Years Tax Returns")
 		}
 		if _, ok2 = kycDocMap[Company2YFinancialStt]; !ok2 {
-			msg = msg + "Company Last 2 Years Financial Statement"
+			msg = append(msg, "Company Last 2 Years Financial Statement")
 		}
 		if _, ok3 = kycDocMap[Company2YBalanceSheets]; !ok3 {
-			msg = msg + ", Company Last 2 Years Balance Sheets"
+			msg = append(msg, "Company Last 2 Years Balance Sheets")
 		}
 		if _, ok4 = kycDocMap[Company6MBankStt]; !ok4 {
-			msg = msg + ", Company Last 6 Months Bank Statement"
+			msg = append(msg, "Company Last 6 Months Bank Statement")
 		}
 		if _, ok5 = kycDocMap[Company6MInvestmentAccStt]; !ok5 {
-			msg = msg + ", Company Last 6 Months Investment Account Statement"
+			msg = append(msg, "Company Last 6 Months Investment Account Statement")
 		}
 		if !(ok && ok1 && ok2 && ok3 && ok4 && ok5) {
 			return 0, msg
 		}
 
 	}
-	if strings.HasPrefix(msg, ", ") {
-		msg = msg[2:]
-	}
+
 	return 0, msg
 
 }
@@ -292,6 +289,45 @@ func VerifyKycAuditResult(userInfo map[string]interface{}) (int, string) {
 
 		}
 	}
+}
+func (h UserHandler) GetUserValue(userId string) (pk string, xlm, grx, algoValue float64) {
+	doc, err := h.apiContext.Store.Doc("users_meta/" + userId).Get(context.Background())
+	if err == nil {
+		xlm = doc.Data()["XLM"].(float64)
+		grx = doc.Data()["GRX"].(float64)
+		if val, ok := doc.Data()["total_gry1_current_position_value_$"]; ok {
+			if val1, ok1 := val.(float64); ok1 {
+				algoValue += val1
+			} else if val1, ok1 := val.(int64); ok1 {
+				algoValue += float64(val1)
+			}
+		}
+		if val, ok := doc.Data()["total_gry2_current_position_value_$"]; ok {
+			if val1, ok1 := val.(float64); ok1 {
+				algoValue += val1
+			} else if val1, ok1 := val.(int64); ok1 {
+				algoValue += float64(val1)
+			}
+
+		}
+		if val, ok := doc.Data()["total_gry3_current_position_value_$"]; ok {
+			if val1, ok1 := val.(float64); ok1 {
+				algoValue += val1
+			} else if val1, ok1 := val.(int64); ok1 {
+				algoValue += float64(val1)
+			}
+		}
+		if val, ok := doc.Data()["total_grz_current_position_value_$"]; ok {
+			if val1, ok1 := val.(float64); ok1 {
+				algoValue += val1
+			} else if val1, ok1 := val.(int64); ok1 {
+				algoValue += float64(val1)
+			}
+		}
+		pk = doc.Data()["PublicKey"].(string)
+	}
+
+	return pk, xlm, grx, algoValue
 
 }
 func GetFriendlyName(fieldName string) string {
@@ -334,7 +370,7 @@ func GetFriendlyName(fieldName string) string {
 		name = "Passport"
 		break
 	case GovNationalIdCard:
-		name = "NationalIdCard"
+		name = "NationalId Card"
 		break
 	case GovDriverLicense:
 		name = "Driver License"

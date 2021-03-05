@@ -167,9 +167,9 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 
 	router := gin.New()
 	//router.Use(gin.Logger())
-	if srv == "prod" || srv == "dev" {
+	if srv == "prod" {
 		router.Use(cors.New(cors.Config{
-			AllowOrigins:     []string{"https://app.grayll.io", "https://admin.grayll.io"},
+			AllowOrigins:     []string{"https://app.grayll.io", "https://admin.grayll.io", "https://grayll-app-test.web.app"},
 			AllowMethods:     []string{"POST, GET, OPTIONS, PUT, DELETE"},
 			AllowHeaders:     []string{"Authorization", "Origin", "Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token"},
 			ExposeHeaders:    []string{"Content-Length"},
@@ -180,7 +180,7 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 	} else {
 		router.Use(cors.New(cors.Config{
 			//AllowOrigins: []string{"https://app.grayll.io"},
-			AllowOrigins:     []string{"http://127.0.0.1:4200"},
+			AllowOrigins:     []string{"http://127.0.0.1:4200", "https://admin.grayll.io", "https://grayll-app-test.web.app"},
 			AllowMethods:     []string{"POST, GET, OPTIONS, PUT, DELETE"},
 			AllowHeaders:     []string{"Authorization", "Origin", "Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token"},
 			ExposeHeaders:    []string{"Content-Length"},
@@ -241,6 +241,7 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 		v1admin.POST("/users/firebaseauth", userHandler.AdminFirebaseAuth())
 
 		v1admin.POST("/users/verifykycdoc", userHandler.VerifyKycDoc())
+		v1admin.POST("/users/finalauditkyc", userHandler.FinalAuditKYC())
 	}
 
 	// apis needs to authenticate
