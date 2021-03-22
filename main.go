@@ -180,7 +180,7 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 	} else {
 		router.Use(cors.New(cors.Config{
 			//AllowOrigins: []string{"https://app.grayll.io"},
-			AllowOrigins:     []string{"http://127.0.0.1:4200", "https://admin.grayll.io", "https://grayll-app-test.web.app"},
+			AllowOrigins:     []string{"http://127.0.0.1:4200", "http://127.0.0.1:8081", "https://admin.grayll.io", "https://grayll-app-test.web.app"},
 			AllowMethods:     []string{"POST, GET, OPTIONS, PUT, DELETE"},
 			AllowHeaders:     []string{"Authorization", "Origin", "Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token"},
 			ExposeHeaders:    []string{"Content-Length"},

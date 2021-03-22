@@ -264,7 +264,7 @@ func (h UserHandler) GetUserData() gin.HandlerFunc {
 			return
 
 		} else {
-			doc, err := h.apiContext.Store.Doc("users/" + searchStr).Get(ctx)
+			doc, err := h.apiContext.Store.Doc("users_meta/" + searchStr).Get(ctx)
 			log.Println(err)
 			if err == nil && doc != nil {
 				userData = doc.Data()
@@ -306,20 +306,34 @@ func (h UserHandler) FinalAuditKYC() gin.HandlerFunc {
 		batch := h.apiContext.Store.Batch()
 		//uid := c.GetString(UID)
 		var newInput map[string]interface{}
+		//userInfo, _ := GetUserByField(h.apiContext.Store, UID, input.Uid)
+		//ctx := context.Background()
+		userSnap, err := h.apiContext.Store.Doc("users_meta/" + input.Uid).Get(ctx)
+		if err != nil {
+			output = Output{Valid: false, ErrCode: INVALID_UNAME_PASSWORD, Message: "User does not exist."}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+		userInfo := userSnap.Data()
 
 		if input.Status == "Approved" {
 			newInput = map[string]interface{}{"Status": "Approved"}
+			ret, _ := VerifyKycAuditResult(userInfo)
+			if ret != 0 {
+				output = Output{Valid: false, ErrCode: UNAPPROVED_EXIST, Message: "there is still unapproved documents"}
+				c.JSON(http.StatusOK, output)
+				return
+			}
 		} else {
 			newInput = map[string]interface{}{"Status": "Declined"}
 
 		}
-		docRef := h.apiContext.Store.Doc("users/" + input.Uid)
+		// docRef := h.apiContext.Store.Doc("users/" + input.Uid)
+		// batch.Set(docRef, newInput, firestore.MergeAll)
+
+		docRef := h.apiContext.Store.Doc("users_meta/" + input.Uid)
 		batch.Set(docRef, newInput, firestore.MergeAll)
 
-		docRef = h.apiContext.Store.Doc("users_meta/" + input.Uid)
-		batch.Set(docRef, newInput, firestore.MergeAll)
-
-		userInfo, _ := GetUserByField(h.apiContext.Store, UID, input.Uid)
 		kyc := userInfo["Kyc"].(map[string]interface{})
 
 		// TODO - Check whether user documents are all approved
@@ -362,7 +376,7 @@ func (h UserHandler) FinalAuditKYC() gin.HandlerFunc {
 
 		} else {
 			// Send mail to user
-			title, content, contents := GenFinalDeclined(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string))
+			title, content, contents := GenKycRevoke(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string))
 			mail.SendNoticeMail(userInfo["Email"].(string), userInfo["Name"].(string), title, contents)
 
 			notice := map[string]interface{}{
@@ -374,7 +388,7 @@ func (h UserHandler) FinalAuditKYC() gin.HandlerFunc {
 			docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(input.Uid).NewDoc()
 			batch.Set(docRef, notice)
 
-			title, _, contents = GenFinalDeclinedGrayll(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string), xlm, grx, algoValue)
+			title, _, contents = GenKycRevokeGrayll(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string), xlm, grx, algoValue)
 			mail.SendNoticeMail(SUPER_ADMIN_EMAIL, SUPER_ADMIN_NAME, title, contents)
 
 			output = Output{Valid: true, AuditRes: "Decline"}
@@ -436,10 +450,18 @@ func (h UserHandler) VerifyKycDoc() gin.HandlerFunc {
 			newInput = map[string]interface{}{input.FieldName + "Res": 0}
 			value = 0
 		}
-		docRef := h.apiContext.Store.Doc("users/" + input.Uid)
+		log.Println(input)
+		docRef := h.apiContext.Store.Doc("users_meta/" + input.Uid)
 		batch.Set(docRef, map[string]interface{}{"KycDocs": newInput}, firestore.MergeAll)
 
-		userInfo, _ := GetUserByField(h.apiContext.Store, UID, input.Uid)
+		//userInfo, _ := GetUserByField(h.apiContext.Store, UID, input.Uid)
+		userSnap, err := h.apiContext.Store.Doc("users_meta/" + input.Uid).Get(ctx)
+		if err != nil {
+			output = Output{Valid: false, ErrCode: INVALID_UNAME_PASSWORD, Message: "User does not exist."}
+			c.JSON(http.StatusOK, output)
+			return
+		}
+		userInfo := userSnap.Data()
 		kyc := userInfo["Kyc"].(map[string]interface{})
 		// send notice
 		docName := GetFriendlyName(input.FieldName)
@@ -464,7 +486,8 @@ func (h UserHandler) VerifyKycDoc() gin.HandlerFunc {
 			batch.Set(docRef, notice)
 
 			title, content, contents = GenDocDeclinedGrayll(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string), docName, xlm, grx, algoValue)
-			mail.SendNoticeMail(SUPER_ADMIN_EMAIL, SUPER_ADMIN_NAME, title, contents)
+			//mail.SendNoticeMail(SUPER_ADMIN_EMAIL, SUPER_ADMIN_NAME, title, contents)
+			mail.SendNoticeMail("huykbc@gmail.com", SUPER_ADMIN_NAME, title, contents)
 
 			output = Output{Valid: true, FieldName: input.FieldName + "Res", Value: value}
 			// Set unread general
@@ -475,40 +498,40 @@ func (h UserHandler) VerifyKycDoc() gin.HandlerFunc {
 			userInfo[input.FieldName+"Res"] = 0
 		}
 
-		// Check whether user documents are all approved
-		ret, _ := VerifyKycAuditResult(userInfo)
-		if ret == 0 {
-			var auditRes map[string]interface{}
-			auditRes = map[string]interface{}{"Status": "Approved"}
-			docRef := h.apiContext.Store.Doc("users/" + input.Uid)
-			batch.Set(docRef, auditRes, firestore.MergeAll)
+		// // Check whether user documents are all approved
+		// ret, _ := VerifyKycAuditResult(userInfo)
+		// if ret == 0 {
+		// 	var auditRes map[string]interface{}
+		// 	auditRes = map[string]interface{}{"Status": "Approved"}
+		// 	docRef := h.apiContext.Store.Doc("users/" + input.Uid)
+		// 	batch.Set(docRef, auditRes, firestore.MergeAll)
 
-			docRef = h.apiContext.Store.Doc("users_meta/" + input.Uid)
-			batch.Set(docRef, auditRes, firestore.MergeAll)
+		// 	docRef = h.apiContext.Store.Doc("users_meta/" + input.Uid)
+		// 	batch.Set(docRef, auditRes, firestore.MergeAll)
 
-			// send notice approve to user
-			title, content, contents := GenFinalApprove(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string))
-			mail.SendNoticeMail(input.Email, input.Name, title, contents)
+		// 	// send notice approve to user
+		// 	title, content, contents := GenFinalApprove(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string))
+		// 	mail.SendNoticeMail(input.Email, input.Name, title, contents)
 
-			notice := map[string]interface{}{
-				"title":  title,
-				"body":   content,
-				"isRead": false,
-				"time":   time.Now().Unix(),
-			}
-			docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(input.Uid).NewDoc()
-			batch.Set(docRef, notice)
-			// Set unread general
-			docRef = h.apiContext.Store.Doc("users_meta/" + input.Uid)
-			batch.Update(docRef, []firestore.Update{
-				{Path: "UrGeneral", Value: firestore.Increment(1)},
-			})
+		// 	notice := map[string]interface{}{
+		// 		"title":  title,
+		// 		"body":   content,
+		// 		"isRead": false,
+		// 		"time":   time.Now().Unix(),
+		// 	}
+		// 	docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(input.Uid).NewDoc()
+		// 	batch.Set(docRef, notice)
+		// 	// Set unread general
+		// 	docRef = h.apiContext.Store.Doc("users_meta/" + input.Uid)
+		// 	batch.Update(docRef, []firestore.Update{
+		// 		{Path: "UrGeneral", Value: firestore.Increment(1)},
+		// 	})
 
-			title, _, contents = GenFinalApproveGrayll(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string), xlm, grx, algoValue)
-			mail.SendNoticeMail(SUPER_ADMIN_EMAIL, SUPER_ADMIN_NAME, title, contents)
-			output.AuditRes = "Approved"
+		// 	title, _, contents = GenFinalApproveGrayll(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string), xlm, grx, algoValue)
+		// 	mail.SendNoticeMail(SUPER_ADMIN_EMAIL, SUPER_ADMIN_NAME, title, contents)
+		// 	output.AuditRes = "Approved"
 
-		}
+		// }
 		_, err = batch.Commit(ctx)
 		if err != nil {
 			output = Output{Valid: false, ErrCode: INTERNAL_ERROR, Message: "unable to udpate audit result data"}
@@ -535,7 +558,7 @@ func (h UserHandler) LoginAdmin() gin.HandlerFunc {
 			return
 		}
 
-		if user.Email != SUPER_ADMIN_EMAIL && user.Email != "grayll@grayll.io" {
+		if user.Email != SUPER_ADMIN_EMAIL && user.Email != "huykbc@gmail.com" {
 			GinRespond(c, http.StatusOK, INVALID_UNAME_PASSWORD, "Invalid user name or password")
 			return
 		}

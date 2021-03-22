@@ -58,10 +58,10 @@ func VerifyKycStatus(userInfo map[string]interface{}) (int, []string) {
 
 	if !(ok || ok1) {
 		// Lack of
-		msg = append(msg, "Income 6 months pays slip or Income 6 months bank statement")
+		msg = append(msg, "Proof of Income  Last 6 Months Pay Slips or Proof of Income Last 6 Months Bank Statements")
 	}
 	if !ok2 {
-		msg = append(msg, "Income 2 year tax returns")
+		msg = append(msg, "Proof of Income Last 2 Years Tax Returns")
 	}
 
 	//log.Println("income:", ok, ok1, ok2, msg)
@@ -90,10 +90,10 @@ func VerifyKycStatus(userInfo map[string]interface{}) (int, []string) {
 	}
 	log.Println("sum:", sum, ok, ok1, ok2, ok3, ok4)
 	if sum == 1 {
-		msg = append(msg, "One more Address document apart from "+submsg)
+		msg = append(msg, "One more Proof of Address Document apart from "+submsg)
 	}
 	if sum == 0 {
-		msg = append(msg, "Two Address documents")
+		msg = append(msg, "2 Proof of Address Documents")
 	}
 	_, ok = kycDocMap[AssetsShareStockCert]
 	_, ok1 = kycDocMap[Assets2MBankAccStt]
@@ -101,32 +101,28 @@ func VerifyKycStatus(userInfo map[string]interface{}) (int, []string) {
 	_, ok3 = kycDocMap[Assets2MInvestAccStt]
 
 	if !(ok || ok1 || ok2 || ok3) {
-		msg = append(msg, "One of Asset documents")
+		msg = append(msg, "One of Proof of Asset documents")
 	}
 
 	if kycMap["AppType"].(string) != "Personal" {
-		_, ok = userInfo["KycCom"]
-		if !ok {
-			return 3, msg
-		}
 
 		if _, ok = kycDocMap[CertIncorporation]; !ok {
-			msg = append(msg, "Certificates of Incorporation/Formation")
+			msg = append(msg, "Certificate of Incorporation/Formation")
 		}
 		if _, ok1 = kycDocMap[Company2YTaxReturns]; !ok1 {
-			msg = append(msg, "Company Last 2 Years Tax Returns")
+			msg = append(msg, "Last 2 Years Tax Returns")
 		}
 		if _, ok2 = kycDocMap[Company2YFinancialStt]; !ok2 {
-			msg = append(msg, "Company Last 2 Years Financial Statement")
+			msg = append(msg, "Last 2 Years Financial Statements")
 		}
 		if _, ok3 = kycDocMap[Company2YBalanceSheets]; !ok3 {
-			msg = append(msg, "Company Last 2 Years Balance Sheets")
+			msg = append(msg, "Last 2 Years Balance Sheets")
 		}
 		if _, ok4 = kycDocMap[Company6MBankStt]; !ok4 {
-			msg = append(msg, "Company Last 6 Months Bank Statement")
+			msg = append(msg, "Last 6 Months Bank Statements")
 		}
 		if _, ok5 = kycDocMap[Company6MInvestmentAccStt]; !ok5 {
-			msg = append(msg, "Company Last 6 Months Investment Account Statement")
+			msg = append(msg, "Last 6 Months Investment Account Statements")
 		}
 		if !(ok && ok1 && ok2 && ok3 && ok4 && ok5) {
 			return 0, msg
@@ -219,10 +215,10 @@ func VerifyKycAuditResult(userInfo map[string]interface{}) (int, string) {
 	}
 
 	if kycMap["AppType"].(string) != "Personal" {
-		_, ok = userInfo["KycCom"]
-		if !ok {
-			return 3, "Not update company information"
-		}
+		// _, ok = userInfo["KycCom"]
+		// if !ok {
+		// 	return 3, "Not update company information"
+		// }
 
 		res, ok = kycDocMap[CertIncorporationRes]
 		//msg = msg + "Certificates of Incorporation/Formation"

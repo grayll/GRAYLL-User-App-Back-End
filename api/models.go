@@ -80,13 +80,19 @@ type Input struct {
 	PositionValueGRX float64 `json:"positionValueGRX"`
 }
 type KYC struct {
-	Status      string `json:"Status,omitempty"`
-	AppType     string `json:"AppType,omitempty"`
-	Name        string `json:"Name,omitempty"`
-	LName       string `json:"LName,omitempty"`
-	Nationality string `json:"Nationality,omitempty"`
-	GovId       string `json:"GovId,omitempty"`
-	DoB         string `json:"DoB,omitempty"`
+	Status       string `json:"Status,omitempty"`
+	AppType      string `json:"AppType,omitempty"`
+	Name         string `json:"Name,omitempty"`
+	LName        string `json:"LName,omitempty"`
+	Nationality  string `json:"Nationality,omitempty"`
+	GovId        string `json:"GovId,omitempty"`
+	DoB          string `json:"DoB,omitempty"`
+	Company      string `json:"Company,omitempty"`
+	Registration string `json:"Registration,omitempty"`
+	Address1     string `json:"Address1,omitempty"`
+	Address2     string `json:"Address2,omitempty"`
+	City         string `json:"City,omitempty"`
+	Country      string `json:"Country,omitempty"`
 }
 type KYCCom struct {
 	Name         string `json:"Name,omitempty"`

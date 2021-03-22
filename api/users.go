@@ -2514,15 +2514,23 @@ func (h UserHandler) UpdateKycDoc() gin.HandlerFunc {
 			return
 		}
 		uid := c.GetString(UID)
-		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
-		if userInfo == nil {
+		// userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+		// if userInfo == nil {
+		// 	output = Output{Valid: false, ErrCode: INVALID_UNAME_PASSWORD, Message: "User does not exist."}
+		// 	c.JSON(http.StatusOK, output)
+		// 	return
+		// }
+		ctx := context.Background()
+		userSnap, err := h.apiContext.Store.Doc("users_meta/" + uid).Get(ctx)
+		if err != nil {
 			output = Output{Valid: false, ErrCode: INVALID_UNAME_PASSWORD, Message: "User does not exist."}
 			c.JSON(http.StatusOK, output)
 			return
 		}
+		userInfo := userSnap.Data()
 		if val, ok := userInfo["Status"]; ok {
 			if val.(string) == "Approved" {
-				output = Output{Valid: false, ErrCode: INVALID_PARAMS, Message: "The KYC documents has been approved."}
+				output = Output{Valid: false, ErrCode: INVALID_PARAMS, Message: "The KYC application has been approved."}
 				c.JSON(http.StatusOK, output)
 			}
 		}
@@ -2535,21 +2543,26 @@ func (h UserHandler) UpdateKycDoc() gin.HandlerFunc {
 		}
 		batch := h.apiContext.Store.Batch()
 
-		docRef := h.apiContext.Store.Doc("users/" + uid)
+		docRef := h.apiContext.Store.Doc("users_meta/" + uid)
 		batch.Set(docRef, map[string]interface{}{"KycDocs": input}, firestore.MergeAll)
+		kycDocs := userInfo["KycDocs"]
+		for k, v := range input {
+			(kycDocs.(map[string]interface{}))[k] = v
+		}
 
+		log.Println("userInfo", userInfo)
 		ret, msg := VerifyKycStatus(userInfo)
-		kyc := userInfo["Kyc"].(map[string]interface{})
+		appType := userInfo["Kyc"].(map[string]interface{})["AppType"].(string)
 		//log.Println("verify result ret,msg: ", ret, msg)
 		// All required documents subitted
 		if ret == 0 && len(msg) == 0 {
-			docRef = h.apiContext.Store.Doc("users/" + uid)
-			batch.Set(docRef, map[string]interface{}{"Status": "Submitted"}, firestore.MergeAll)
+			// docRef = h.apiContext.Store.Doc("users/" + uid)
+			// batch.Set(docRef, map[string]interface{}{"Status": "Submitted"}, firestore.MergeAll)
 
 			docRef = h.apiContext.Store.Doc("users_meta/" + uid)
 			batch.Set(docRef, map[string]interface{}{"Status": "Submitted"}, firestore.MergeAll)
 
-			title, content, contents := GenSubmitCompleted(kyc["AppType"].(string))
+			title, content, contents := GenSubmitCompleted(appType)
 			mail.SendNoticeMail(userInfo["Email"].(string), userInfo["Name"].(string), title, contents)
 
 			notice := map[string]interface{}{
@@ -2562,13 +2575,12 @@ func (h UserHandler) UpdateKycDoc() gin.HandlerFunc {
 			batch.Set(docRef, notice)
 
 			pk, xlm, grx, algoValue := h.GetUserValue(uid)
-			title, content, contents = GenSubmitCompletedGrayll(userInfo["Name"].(string), userInfo["LName"].(string), uid, pk, kyc["AppType"].(string), xlm, grx, algoValue)
-			//mail.SendNoticeMail("grayll@grayll.io", "GRAYLL", title, contents)
-			mail.SendNoticeMail("huykbc@gmail.com", "GRAYLL", title, contents)
+			title, content, contents = GenSubmitCompletedGrayll(userInfo["Name"].(string), userInfo["LName"].(string), uid, pk, appType, xlm, grx, algoValue)
+			mail.SendNoticeMail(SUPER_ADMIN_EMAIL, SUPER_ADMIN_NAME, title, contents)
 
 		} else if len(msg) != 0 {
 			docName := GetFriendlyName(fieldName)
-			title, content, contents := GenDocSubmitOk(kyc["AppType"].(string), docName, msg)
+			title, content, contents := GenDocSubmitOk(appType, docName, msg)
 			mail.SendNoticeMail(userInfo["Email"].(string), userInfo["Name"].(string), title, contents)
 
 			notice := map[string]interface{}{
@@ -2619,20 +2631,22 @@ func (h UserHandler) UpdateKyc() gin.HandlerFunc {
 		}
 
 		uid := c.GetString(UID)
-		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
-		if userInfo == nil {
+		//userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+		ctx := context.Background()
+		userSnap, err := h.apiContext.Store.Doc("users_meta/" + uid).Get(ctx)
+		if err != nil {
 			output = Output{Valid: false, ErrCode: INVALID_UNAME_PASSWORD, Message: "User does not exist."}
 			c.JSON(http.StatusOK, output)
 			return
 		}
-
+		userInfo := userSnap.Data()
 		if val, ok := userInfo["Status"]; ok {
 			if val.(string) == "Approved" {
 				output = Output{Valid: false, ErrCode: INVALID_PARAMS, Message: "The KYC documents has been approved."}
 				c.JSON(http.StatusOK, output)
 			}
 		}
-		_, err = h.apiContext.Store.Doc("users/"+uid).Set(context.Background(), map[string]interface{}{"Kyc": input}, firestore.MergeAll)
+		_, err = h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), map[string]interface{}{"Kyc": input}, firestore.MergeAll)
 		if err != nil {
 			output = Output{Valid: false, ErrCode: INTERNAL_ERROR, Message: "Can not update profile."}
 			c.JSON(http.StatusOK, output)
