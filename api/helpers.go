@@ -88,7 +88,7 @@ func VerifyKycStatus(userInfo map[string]interface{}) (int, []string) {
 		sum += 1
 		submsg = "Address Tax Return"
 	}
-	log.Println("sum:", sum, ok, ok1, ok2, ok3, ok4)
+
 	if sum == 1 {
 		msg = append(msg, "One more Proof of Address Document apart from "+submsg)
 	}
@@ -191,7 +191,7 @@ func VerifyKycAuditResult(userInfo map[string]interface{}) (int, string) {
 		sum += 1
 		submsg = "Address Tax Return"
 	}
-	log.Println("sum:", sum, ok, ok1, ok2, ok3, ok4)
+
 	if sum == 1 {
 		msg = msg + ", One more Address document apart from " + submsg
 	}
@@ -270,7 +270,7 @@ func VerifyKycAuditResult(userInfo map[string]interface{}) (int, string) {
 	if strings.HasPrefix(msg, ", ") {
 		msg = msg[2:]
 	}
-	log.Println("res audit:", govRes, incomeRes, addressRes, assetRes, companyRes)
+
 	if kycMap["AppType"].(string) == "Personal" {
 		if govRes && incomeRes && addressRes && assetRes {
 			return 0, msg
@@ -488,9 +488,9 @@ func TimeIn(t time.Time, name string) (time.Time, error) {
 	return t, err
 }
 func NewDate(t time.Time, h, m int, local string) time.Time {
-	log.Println("NewDate-local:", local)
+
 	loc, _ := time.LoadLocation(local)
-	log.Println("NewDate-loc:", loc)
+
 	return time.Date(t.Year(), t.Month(), t.Day(), h, m, 0, 0, loc)
 }
 

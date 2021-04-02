@@ -474,7 +474,7 @@ func (h UserHandler) VerifyKycDoc() gin.HandlerFunc {
 			output = Output{Valid: true, FieldName: input.FieldName + "Res", Value: value}
 			userInfo[input.FieldName+"Res"] = 1
 		} else {
-			title, content, contents := GenDocDeclined(kyc["AppType"].(string), docName, "30-7-2021")
+			title, content, contents := GenDocDeclined(kyc["AppType"].(string), docName, "May 3rd, 2021")
 			mail.SendNoticeMail(input.Email, input.Name, title, contents)
 			notice := map[string]interface{}{
 				"title":  title,
@@ -486,8 +486,7 @@ func (h UserHandler) VerifyKycDoc() gin.HandlerFunc {
 			batch.Set(docRef, notice)
 
 			title, content, contents = GenDocDeclinedGrayll(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string), docName, xlm, grx, algoValue)
-			//mail.SendNoticeMail(SUPER_ADMIN_EMAIL, SUPER_ADMIN_NAME, title, contents)
-			mail.SendNoticeMail("huykbc@gmail.com", SUPER_ADMIN_NAME, title, contents)
+			mail.SendNoticeMail(SUPER_ADMIN_EMAIL, SUPER_ADMIN_NAME, title, contents)
 
 			output = Output{Valid: true, FieldName: input.FieldName + "Res", Value: value}
 			// Set unread general
@@ -498,40 +497,6 @@ func (h UserHandler) VerifyKycDoc() gin.HandlerFunc {
 			userInfo[input.FieldName+"Res"] = 0
 		}
 
-		// // Check whether user documents are all approved
-		// ret, _ := VerifyKycAuditResult(userInfo)
-		// if ret == 0 {
-		// 	var auditRes map[string]interface{}
-		// 	auditRes = map[string]interface{}{"Status": "Approved"}
-		// 	docRef := h.apiContext.Store.Doc("users/" + input.Uid)
-		// 	batch.Set(docRef, auditRes, firestore.MergeAll)
-
-		// 	docRef = h.apiContext.Store.Doc("users_meta/" + input.Uid)
-		// 	batch.Set(docRef, auditRes, firestore.MergeAll)
-
-		// 	// send notice approve to user
-		// 	title, content, contents := GenFinalApprove(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string))
-		// 	mail.SendNoticeMail(input.Email, input.Name, title, contents)
-
-		// 	notice := map[string]interface{}{
-		// 		"title":  title,
-		// 		"body":   content,
-		// 		"isRead": false,
-		// 		"time":   time.Now().Unix(),
-		// 	}
-		// 	docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(input.Uid).NewDoc()
-		// 	batch.Set(docRef, notice)
-		// 	// Set unread general
-		// 	docRef = h.apiContext.Store.Doc("users_meta/" + input.Uid)
-		// 	batch.Update(docRef, []firestore.Update{
-		// 		{Path: "UrGeneral", Value: firestore.Increment(1)},
-		// 	})
-
-		// 	title, _, contents = GenFinalApproveGrayll(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string), xlm, grx, algoValue)
-		// 	mail.SendNoticeMail(SUPER_ADMIN_EMAIL, SUPER_ADMIN_NAME, title, contents)
-		// 	output.AuditRes = "Approved"
-
-		// }
 		_, err = batch.Commit(ctx)
 		if err != nil {
 			output = Output{Valid: false, ErrCode: INTERNAL_ERROR, Message: "unable to udpate audit result data"}

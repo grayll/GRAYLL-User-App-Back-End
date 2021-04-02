@@ -2530,8 +2530,9 @@ func (h UserHandler) UpdateKycDoc() gin.HandlerFunc {
 		userInfo := userSnap.Data()
 		if val, ok := userInfo["Status"]; ok {
 			if val.(string) == "Approved" {
-				output = Output{Valid: false, ErrCode: INVALID_PARAMS, Message: "The KYC application has been approved."}
+				output = Output{Valid: false, ErrCode: APPROVED, Message: "The KYC application has been approved."}
 				c.JSON(http.StatusOK, output)
+				return
 			}
 		}
 		fieldName := ""
@@ -2545,12 +2546,19 @@ func (h UserHandler) UpdateKycDoc() gin.HandlerFunc {
 
 		docRef := h.apiContext.Store.Doc("users_meta/" + uid)
 		batch.Set(docRef, map[string]interface{}{"KycDocs": input}, firestore.MergeAll)
-		kycDocs := userInfo["KycDocs"]
-		for k, v := range input {
-			(kycDocs.(map[string]interface{}))[k] = v
-		}
 
-		log.Println("userInfo", userInfo)
+		kycDocs := make(map[string]interface{})
+
+		if kycIn, ok := userInfo["KycDocs"]; ok {
+			kycDocs = kycIn.(map[string]interface{})
+			for k, v := range input {
+				kycDocs[k] = v
+			}
+		} else {
+			kycDocs = input
+		}
+		userInfo["KycDocs"] = kycDocs
+
 		ret, msg := VerifyKycStatus(userInfo)
 		appType := userInfo["Kyc"].(map[string]interface{})["AppType"].(string)
 		//log.Println("verify result ret,msg: ", ret, msg)
@@ -2596,6 +2604,7 @@ func (h UserHandler) UpdateKycDoc() gin.HandlerFunc {
 
 		_, err = batch.Commit(context.Background())
 		if err != nil {
+			log.Println("Commit kyc doc err", err)
 			output = Output{Valid: false, ErrCode: INTERNAL_ERROR, Message: "Can not update kyc doc."}
 			c.JSON(http.StatusOK, output)
 			return
