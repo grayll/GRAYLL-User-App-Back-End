@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -1256,7 +1257,7 @@ func GetDashBoardData(client *firestore.Client, coin, frame string, days int64) 
 			if doc.Data() != nil {
 				p.Ts = doc.Data()[UNIX_timestamp].(int64)
 				p.Price = doc.Data()[price].(float64)
-				if (ts == 0) || (p.Price == 0) {
+				if (ts == 0) || (p.Price == 0) || math.IsNaN(p.Price) {
 					continue
 				}
 				break
@@ -1323,12 +1324,13 @@ func QueryFrameDataWithTs(client *firestore.Client, limit int, coin, frame strin
 		ts := doc.Data()[UNIX_timestamp].(int64)
 
 		p := doc.Data()[price].(float64)
-		if (ts == 0) || (p == 0) {
+		if (ts == 0) || (p == 0) || math.IsNaN(p) {
 			continue
 		}
 
 		price := PriceData{ts, p}
 		prices = append(prices, price)
+
 	}
 
 	return prices

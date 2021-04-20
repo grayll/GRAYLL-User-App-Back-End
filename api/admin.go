@@ -195,7 +195,7 @@ func (h UserHandler) GetUsersMeta() gin.HandlerFunc {
 			GinRespond(c, http.StatusOK, INVALID_PARAMS, err.Error())
 			return
 		}
-		limit := 250
+		limit := 3050
 		users := make([]map[string]interface{}, 0)
 		ctx := context.Background()
 		usersColl := h.apiContext.Store.Collection("users_meta")
@@ -208,7 +208,11 @@ func (h UserHandler) GetUsersMeta() gin.HandlerFunc {
 			}
 
 			for _, doc := range userDocs {
-				users = append(users, doc.Data())
+				userMap := doc.Data()
+				if _, ok := userMap["Status"]; !ok {
+					userMap["Status"] = "Pending"
+				}
+				users = append(users, userMap)
 			}
 		} else {
 			userDocs, err := usersColl.OrderBy("CreatedAt", firestore.Desc).StartAfter(cursor).Limit(limit).Documents(ctx).GetAll()
@@ -218,7 +222,11 @@ func (h UserHandler) GetUsersMeta() gin.HandlerFunc {
 			}
 
 			for _, doc := range userDocs {
-				users = append(users, doc.Data())
+				userMap := doc.Data()
+				if _, ok := userMap["Status"]; !ok {
+					userMap["Status"] = "Pending"
+				}
+				users = append(users, userMap)
 			}
 		}
 		c.JSON(http.StatusOK, map[string]interface{}{"errCode": SUCCESS, "usersMeta": users})
@@ -245,9 +253,10 @@ func (h UserHandler) GetUserData() gin.HandlerFunc {
 
 			if len(doc) > 0 {
 				userData = doc[0].Data()
+
 				errCode = SUCCESS
 			}
-		} else if strings.Contains(searchStr, "Submmit") || strings.Contains(searchStr, "Approve") {
+		} else if strings.Contains(searchStr, "Submmit") || strings.Contains(searchStr, "Approve") || strings.Contains(searchStr, "UnCompleted") {
 			docs, _ := h.apiContext.Store.Collection("users_meta").Where("Status", "==", searchStr).Documents(ctx).GetAll()
 			users := make([]map[string]interface{}, 0)
 			if len(docs) > 0 {
@@ -257,7 +266,7 @@ func (h UserHandler) GetUserData() gin.HandlerFunc {
 				}
 				errCode = SUCCESS
 			}
-			log.Println("users", users)
+
 			c.JSON(http.StatusOK, gin.H{
 				"errCode": errCode, "userData": users,
 			})
@@ -272,7 +281,9 @@ func (h UserHandler) GetUserData() gin.HandlerFunc {
 				errCode = SUCCESS
 			}
 		}
-
+		if _, ok := userData["Status"]; !ok {
+			userData["Status"] = "Pending"
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"errCode": errCode, "userData": userData,
 		})
@@ -474,7 +485,7 @@ func (h UserHandler) VerifyKycDoc() gin.HandlerFunc {
 			output = Output{Valid: true, FieldName: input.FieldName + "Res", Value: value}
 			userInfo[input.FieldName+"Res"] = 1
 		} else {
-			title, content, contents := GenDocDeclined(kyc["AppType"].(string), docName, "May 3rd, 2021")
+			title, content, contents := GenDocDeclined(kyc["AppType"].(string), docName, "June 30, 2021")
 			mail.SendNoticeMail(input.Email, input.Name, title, contents)
 			notice := map[string]interface{}{
 				"title":  title,
