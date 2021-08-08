@@ -25,14 +25,14 @@ import (
 	"cloud.google.com/go/firestore"
 
 	//"github.com/SherClockHolmes/webpush-go"
+	firebase "firebase.google.com/go"
 	"github.com/asaskevich/govalidator"
 	"github.com/avct/uasurfer"
 	"github.com/dgryski/dgoogauth"
 	"github.com/gin-gonic/gin"
 	stellar "github.com/huyntsgs/stellar-service"
+	"github.com/stellar/go/clients/horizonclient"
 	build "github.com/stellar/go/txnbuild"
-
-	firebase "firebase.google.com/go"
 
 	"google.golang.org/api/option"
 
@@ -3507,6 +3507,156 @@ func (h UserHandler) DelInvite() gin.HandlerFunc {
 			return
 		}
 		GinRespond(c, http.StatusOK, SUCCESS, "")
+	}
+}
+
+func (h UserHandler) TxBuyGrx() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var request struct {
+			TxXDR string `json:"txXDR"`
+
+			Data map[string]interface{} `json:"data,omitempty"`
+		}
+
+		stellar.SetupParam(float64(1000), true, "https://horizon.grayll.io")
+
+		err := c.BindJSON(&request)
+		if err != nil {
+			log.Println("BindJSON error: ", err)
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "Error can not parse input data")
+			return
+		}
+		log.Println("request: ", request.Data)
+		uid := c.GetString(UID)
+
+		userInfo, _ := GetUserByField(h.apiContext.Store, UID, uid)
+
+		txb, err := build.TransactionFromXDR(request.TxXDR)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		tx1, _ := txb.Transaction()
+		op, err := tx1.Operations()[0].BuildXDR(false)
+		if err != nil {
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "")
+			return
+		}
+
+		op1, err := tx1.Operations()[1].BuildXDR(false)
+		if err != nil {
+			GinRespond(c, http.StatusOK, INVALID_PARAMS, "")
+			return
+		}
+		paymentOP, _ := op.Body.GetPaymentOp()
+		paymentOP1, _ := op1.Body.GetPaymentOp()
+		log.Println(paymentOP.Destination.Address(), paymentOP.Amount, h.apiContext.Config.SuperAdminAddress)
+		log.Println(paymentOP1.Destination.Address(), paymentOP.Amount, userInfo["PublicKey"].(string))
+
+		//if paymentOP.Destination.Address() == h.apiContext.Config.SuperAdminAddress && paymentOP1.Destination.Address() == userInfo["PublicKey"].(string) {
+		// validate tx
+		//var amount float64 = 0
+
+		var grxPrice, grxAmount, xlmAmount float64
+		var ok bool
+		grxPrice, ok = request.Data["grxPrice"].(float64)
+		if !ok {
+			log.Println("Can not get grx price", err)
+			GinRespond(c, http.StatusOK, TX_FAIL, "")
+			return
+		}
+		grxAmount, ok = request.Data["grxAmount"].(float64)
+		if !ok {
+			log.Println("Can not get grxAmount", err)
+			GinRespond(c, http.StatusOK, TX_FAIL, "")
+			return
+		}
+		xlmAmount, ok = request.Data["xlmAmount"].(float64)
+		if !ok {
+			log.Println("Can not get xlmAmount", err)
+			GinRespond(c, http.StatusOK, TX_FAIL, "")
+			return
+		}
+		grxUsd, ok := request.Data["grxUsd"].(float64)
+		if !ok {
+			log.Println("Can not get grxUsd", err)
+			GinRespond(c, http.StatusOK, TX_FAIL, "")
+			return
+		}
+		totalUsd, ok := request.Data["totalUsd"].(float64)
+		if !ok {
+			log.Println("Can not get totalUsd", err)
+			GinRespond(c, http.StatusOK, TX_FAIL, "")
+			return
+		}
+
+		log.Println("grxXlmPrice, grxAmount, xlmAmount: ", grxPrice, grxAmount, xlmAmount)
+
+		// if grxPrice < h.apiContext.Config.SellingPrice {
+		// 	log.Println("txverify - price is lower than setting", grxPrice, h.apiContext.Config.SellingPrice)
+		// 	GinRespond(c, http.StatusOK, PRICE_LOWER_LIMIT, "")
+		// 	return
+		// }
+
+		// if amount != xlmAmount {
+		// 	GinRespond(c, http.StatusOK, PRICE_LOWER_LIMIT, "")
+		// 	log.Println("tx PRICE_LOWER_LIMIT")
+		// 	return
+		// }
+
+		_, mykp, err := stellar.ReturnSourceAccount(h.apiContext.Config.SuperAdminSeed)
+		if err != nil {
+			log.Println("err ReturnSourceAccount", err)
+			return
+		}
+
+		tx1, err = tx1.Sign(stellar.Passphrase, mykp)
+		base64xdr, _ := tx1.Base64()
+
+		log.Println("base64xdr", base64xdr)
+
+		resp, err := stellar.HorizonClient.SubmitTransactionXDR(base64xdr)
+		if err != nil {
+			log.Println("SendTx - SubmitTransactionXDR err:", err, resp.ResultXdr, resp.ResultMetaXdr)
+			if herr, ok := err.(*horizonclient.Error); ok {
+				fmt.Println("Error has additional info")
+				fmt.Println(herr.ResultCodes())
+				fmt.Println(herr.ResultString())
+				fmt.Println(herr.Problem)
+			}
+
+		}
+
+		// Save to trade collection
+		data := map[string]interface{}{
+			"time":     time.Now().Unix(),
+			"type":     "BUY",
+			"asset":    "GRX",
+			"amount":   grxAmount, //
+			"xlmp":     grxPrice,
+			"totalxlm": xlmAmount, //
+			"priceusd": grxUsd,
+			"totalusd": totalUsd,
+			"offerId":  resp.ID,
+		}
+
+		docRef := h.apiContext.Store.Collection("trades").Doc("users").Collection(uid).NewDoc()
+		_, err = docRef.Set(context.Background(), data)
+		if err != nil {
+			log.Println("[ERROR] SaveNotice: ", err)
+			return
+		}
+		data["id"] = docRef.ID
+		data["uid"] = uid
+		_, err = h.apiContext.OrderIndex.SaveObject(data)
+		if err != nil {
+			log.Println("[ERROR] Algolia OrderIndex.SaveObject: ", err)
+			return
+		}
+
+		//}
+
 	}
 }
 

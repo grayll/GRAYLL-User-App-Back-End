@@ -139,8 +139,8 @@ func main() {
 	})
 
 	isPriceValid := true
-
-	url := "https://horizon.stellar.org/trades?base_asset_type=native&counter_asset_type=credit_alphanum4&counter_asset_code=USD&counter_asset_issuer=GDUKMGUGDZQK6YHYA5Z6AY2G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5YLEX&order=desc&limit=1"
+	HORIZOL_URL := "https://horizon.stellar.org/"
+	url := HORIZOL_URL + "trades?base_asset_type=native&counter_asset_type=credit_alphanum4&counter_asset_code=USD&counter_asset_issuer=GDUKMGUGDZQK6YHYA5Z6AY2G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5YLEX&order=desc&limit=1"
 	n, d, err := api.GetPrice(url)
 	if err == nil {
 		xlmusd = n / d
@@ -148,7 +148,7 @@ func main() {
 		isPriceValid = false
 	}
 
-	url = "https://horizon.stellar.org/trades?base_asset_type=native&counter_asset_type=credit_alphanum4&counter_asset_code=GRX&counter_asset_issuer=GAQQZMUNB7UCL2SXHU6H7RZVNFL6PI4YXLPJNBXMOZXB2LOQ7LODH333&order=desc&limit=1"
+	url = HORIZOL_URL + "trades?base_asset_type=native&counter_asset_type=credit_alphanum4&counter_asset_code=GRX&counter_asset_issuer=GAQQZMUNB7UCL2SXHU6H7RZVNFL6PI4YXLPJNBXMOZXB2LOQ7LODH333&order=desc&limit=1"
 	n, d, err = api.GetPrice(url)
 	if err == nil {
 		xlmgrx = d / n
@@ -213,7 +213,7 @@ func main() {
 			}
 		}()
 
-		//log.Println("Asks:", orderbook.)
+		log.Println("Asks:")
 		var askf float64 = 0
 		for _, ask := range orderbook.Asks {
 			askf = float64(ask.PriceR.D) / float64(ask.PriceR.N)
@@ -252,12 +252,12 @@ func main() {
 				//return
 			}
 		}
-		_, err = grzStore.Doc(PRICE_PATH).Set(ctx, askbid, firestore.MergeAll)
-		if err != nil {
-			log.Println("Update xlmp error: ", err)
-			//return
-		}
-		log.Println("BEnd ids:")
+		// _, err = grzStore.Doc(PRICE_PATH).Set(ctx, askbid, firestore.MergeAll)
+		// if err != nil {
+		// 	log.Println("Update xlmp error: ", err)
+
+		// }
+		log.Println("End bid")
 	}
 
 	go func() {

@@ -24,6 +24,7 @@ import (
 	stellar "github.com/huyntsgs/stellar-service"
 	"github.com/jinzhu/now"
 	"github.com/stellar/go/clients/horizonclient"
+	"github.com/stellar/go/protocols/horizon"
 	"github.com/stellar/go/protocols/horizon/operations"
 	build "github.com/stellar/go/txnbuild"
 )
@@ -614,6 +615,30 @@ func ParseLedgerData(url string) (*LedgerPayment, error) {
 	return &ledger, nil
 
 }
+func ParseOrderBookData(url string) (*horizon.OrderBookSummary, error) {
+	ledger := horizon.OrderBookSummary{}
+
+	res, err := http.Get(url)
+	if err != nil {
+		log.Println("http.Get "+url+" error:", err)
+		return nil, err
+	}
+
+	defer res.Body.Close()
+
+	data, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+	//log.Println("data:", string(data))
+
+	err = json.Unmarshal(data, &ledger)
+	if err != nil {
+		return nil, err
+	}
+	return &ledger, nil
+
+}
 func ParsePaymentFromTxHash(txHash string, client *horizonclient.Client) ([]operations.Payment, error) {
 	opRequest := horizonclient.OperationRequest{ForTransaction: txHash}
 	ops, err := client.Operations(opRequest)
@@ -691,6 +716,26 @@ func GetLedgerInfo(url, publicKey, xlmLoaner string) (string, string, float64, e
 // }
 
 func GetPrice(url string) (float64, float64, error) {
+	embs, err := ParseLedgerData(url)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if len(embs.Embed.Records) > 0 {
+		if price, ok := embs.Embed.Records[0]["price"]; ok {
+			//log.Println("price:", price)
+			prices := price.(map[string]interface{})
+			n, ok1 := prices["n"]
+			d, ok2 := prices["d"]
+			if ok1 && ok2 {
+				return n.(float64), d.(float64), nil
+			}
+		}
+	}
+	return 0, 0, errors.New("price not found")
+}
+
+func GetOrderBook(url string) (float64, float64, error) {
 	embs, err := ParseLedgerData(url)
 	if err != nil {
 		return 0, 0, err

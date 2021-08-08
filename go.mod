@@ -1,6 +1,6 @@
 module bitbucket.org/grayll/grayll.io-user-app-back-end
 
-go 1.13
+go 1.15
 
 //replace github.com/huyntsgs/stellar-service v0.0.0-20201119030054-0d9cc0ccc690 => /home/bc/go/src/github.com/huyntsgs/stellar-service
 
@@ -41,7 +41,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/huyntsgs/cors v1.3.2-0.20200526010755-d0b894e7ee83
 	github.com/huyntsgs/hermes v0.0.0-20191119075450-4a9f1c2a64a0
-	github.com/huyntsgs/stellar-service v0.0.0-20201119030054-0d9cc0ccc690
+	github.com/huyntsgs/stellar-service v0.0.0-20210722170154-e54ec8fc62e9
 
 	//github.com/huyntsgs/stellar-service v0.0.0-20200511152020-7a130845cf0d
 
@@ -59,7 +59,7 @@ require (
 	github.com/sendgrid/sendgrid-go v3.5.0+incompatible
 	github.com/spf13/cobra v1.0.0 // indirect
 	//github.com/stellar/go v0.0.0-20190920224012-d72ea298f1e9
-	github.com/stellar/go v0.0.0-20200929180504-98db741b54f0
+	github.com/stellar/go v0.0.0-20210415113509-c8c12a14a16b
 	github.com/ulule/limiter/v3 v3.5.0
 	go.uber.org/goleak v0.10.0 // indirect
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9

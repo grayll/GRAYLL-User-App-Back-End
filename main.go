@@ -44,11 +44,13 @@ func main() {
 	var store *firestore.Client
 	srv := os.Getenv("SERVER")
 	var config *api.Config
+	log.Println(srv)
 	if srv == "prod" {
 		config = parseConfig("config1.json")
 	} else if srv == "dev" {
 		config = parseConfig("config1-dev.json")
 	} else {
+
 		config = parseConfig("config.json")
 	}
 	asset := assets.Asset{Code: config.AssetCode, IssuerAddress: config.IssuerAddress}
@@ -61,6 +63,7 @@ func main() {
 	sellingPercent := os.Getenv("SELLING_PERCENT")
 	ctx := context.Background()
 	if config.IsMainNet {
+		log.Println("IsMainNet")
 		config.IsMainNet = true
 		store, err = GetFsClient(false)
 		if err != nil {
@@ -84,6 +87,7 @@ func main() {
 		log.Println("ENV:", config.SuperAdminAddress, config.SellingPrice, config.SellingPercent)
 		cloudTaskClient, err = cloudtasks.NewClient(ctx)
 	} else {
+		log.Println("here")
 		config.IsMainNet = false
 		store, err = GetFsClient(true)
 		if err != nil {
@@ -257,6 +261,7 @@ func SetupRouter(appContext *api.ApiContext, srv string) *gin.Engine {
 		v1.POST("/users/validateaccount", userHandler.ValidateAccount())
 		v1.POST("/users/savesubcriber", userHandler.SaveSubcriber())
 		v1.POST("/users/txverify", userHandler.TxVerify())
+		v1.POST("/users/txbuygrx", userHandler.TxBuyGrx())
 		v1.POST("/users/notices", userHandler.GetNotices())
 		v1.POST("/users/updateReadNotices", userHandler.UpdateReadNotices())
 		v1.POST("/users/updateAllAsRead/:noticeType", userHandler.UpdateAllAsRead())
