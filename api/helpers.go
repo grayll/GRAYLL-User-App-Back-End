@@ -287,44 +287,52 @@ func VerifyKycAuditResult(userInfo map[string]interface{}) (int, string) {
 		}
 	}
 }
-func (h UserHandler) GetUserValue(userId string) (pk string, xlm, grx, algoValue float64) {
+func (h UserHandler) GetUserValue(userId string) UserValue {
 	doc, err := h.apiContext.Store.Doc("users_meta/" + userId).Get(context.Background())
+	userVale := UserValue{}
 	if err == nil {
-		xlm = doc.Data()["XLM"].(float64)
-		grx = doc.Data()["GRX"].(float64)
+		userVale.xlm = doc.Data()["XLM"].(float64)
+		userVale.grx = doc.Data()["GRX"].(float64)
 		if val, ok := doc.Data()["total_gry1_current_position_value_$"]; ok {
 			if val1, ok1 := val.(float64); ok1 {
-				algoValue += val1
+				userVale.algoValue += val1
 			} else if val1, ok1 := val.(int64); ok1 {
-				algoValue += float64(val1)
+				userVale.algoValue += float64(val1)
 			}
 		}
 		if val, ok := doc.Data()["total_gry2_current_position_value_$"]; ok {
 			if val1, ok1 := val.(float64); ok1 {
-				algoValue += val1
+				userVale.algoValue += val1
 			} else if val1, ok1 := val.(int64); ok1 {
-				algoValue += float64(val1)
+				userVale.algoValue += float64(val1)
 			}
 
 		}
 		if val, ok := doc.Data()["total_gry3_current_position_value_$"]; ok {
 			if val1, ok1 := val.(float64); ok1 {
-				algoValue += val1
+				userVale.algoValue += val1
 			} else if val1, ok1 := val.(int64); ok1 {
-				algoValue += float64(val1)
+				userVale.algoValue += float64(val1)
 			}
 		}
 		if val, ok := doc.Data()["total_grz_current_position_value_$"]; ok {
 			if val1, ok1 := val.(float64); ok1 {
-				algoValue += val1
+				userVale.algoValue += val1
 			} else if val1, ok1 := val.(int64); ok1 {
-				algoValue += float64(val1)
+				userVale.algoValue += float64(val1)
 			}
 		}
-		pk = doc.Data()["PublicKey"].(string)
+		userVale.pk = doc.Data()["PublicKey"].(string)
+
+		if val, ok := doc.Data()["GRY"].(float64); ok {
+			userVale.gry = val
+		}
+		if val, ok := doc.Data()["USDC"].(float64); ok {
+			userVale.usdc = val
+		}
 	}
 
-	return pk, xlm, grx, algoValue
+	return userVale
 
 }
 func GetFriendlyName(fieldName string) string {

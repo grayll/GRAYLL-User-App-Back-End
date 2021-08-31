@@ -291,6 +291,15 @@ func (h UserHandler) GetUserData() gin.HandlerFunc {
 	}
 }
 
+type UserValue struct {
+	pk        string
+	xlm       float64
+	grx       float64
+	gry       float64
+	usdc      float64
+	algoValue float64
+}
+
 // for admin
 func (h UserHandler) FinalAuditKYC() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -365,10 +374,10 @@ func (h UserHandler) FinalAuditKYC() gin.HandlerFunc {
 		// 	output = Output{Valid: true, FieldName: input.FieldName + "Res", Value: value, AuditRes: "UnApproved"}
 		// }
 
-		pk, xlm, grx, algoValue := h.GetUserValue(input.Uid)
+		userValue := h.GetUserValue(input.Uid)
 		if input.Status == "Approved" {
 			// Send mail to user
-			title, content, contents := GenFinalApprove(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string))
+			title, content, contents := GenFinalApprove(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, userValue.pk, kyc["AppType"].(string))
 			mail.SendNoticeMail(userInfo["Email"].(string), userInfo["Name"].(string), title, contents)
 
 			notice := map[string]interface{}{
@@ -380,14 +389,14 @@ func (h UserHandler) FinalAuditKYC() gin.HandlerFunc {
 			docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(input.Uid).NewDoc()
 			batch.Set(docRef, notice)
 
-			title, _, contents = GenFinalApproveGrayll(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string), xlm, grx, algoValue)
+			title, _, contents = GenFinalApproveGrayll(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, kyc["AppType"].(string), userValue)
 			mail.SendNoticeMail(SUPER_ADMIN_EMAIL, SUPER_ADMIN_NAME, title, contents)
 
 			output = Output{Valid: true, AuditRes: "Approved"}
 
 		} else {
 			// Send mail to user
-			title, content, contents := GenKycRevoke(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string))
+			title, content, contents := GenKycRevoke(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, userValue.pk, kyc["AppType"].(string))
 			mail.SendNoticeMail(userInfo["Email"].(string), userInfo["Name"].(string), title, contents)
 
 			notice := map[string]interface{}{
@@ -399,7 +408,7 @@ func (h UserHandler) FinalAuditKYC() gin.HandlerFunc {
 			docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(input.Uid).NewDoc()
 			batch.Set(docRef, notice)
 
-			title, _, contents = GenKycRevokeGrayll(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string), xlm, grx, algoValue)
+			title, _, contents = GenKycRevokeGrayll(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, kyc["AppType"].(string), userValue)
 			mail.SendNoticeMail(SUPER_ADMIN_EMAIL, SUPER_ADMIN_NAME, title, contents)
 
 			output = Output{Valid: true, AuditRes: "Decline"}
@@ -477,10 +486,10 @@ func (h UserHandler) VerifyKycDoc() gin.HandlerFunc {
 		// send notice
 		docName := GetFriendlyName(input.FieldName)
 
-		pk, xlm, grx, algoValue := h.GetUserValue(input.Uid)
+		userValue := h.GetUserValue(input.Uid)
 		if input.Status == "accept" {
 
-			title, _, contents := GenDocAcceptedGrayll(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string), docName, xlm, grx, algoValue)
+			title, _, contents := GenDocAcceptedGrayll(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, kyc["AppType"].(string), docName, userValue)
 			mail.SendNoticeMail(SUPER_ADMIN_EMAIL, SUPER_ADMIN_NAME, title, contents)
 			output = Output{Valid: true, FieldName: input.FieldName + "Res", Value: value}
 			userInfo[input.FieldName+"Res"] = 1
@@ -496,7 +505,7 @@ func (h UserHandler) VerifyKycDoc() gin.HandlerFunc {
 			docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(input.Uid).NewDoc()
 			batch.Set(docRef, notice)
 
-			title, content, contents = GenDocDeclinedGrayll(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, pk, kyc["AppType"].(string), docName, xlm, grx, algoValue)
+			title, content, contents = GenDocDeclinedGrayll(userInfo["Name"].(string), userInfo["LName"].(string), input.Uid, kyc["AppType"].(string), docName, userValue)
 			mail.SendNoticeMail(SUPER_ADMIN_EMAIL, SUPER_ADMIN_NAME, title, contents)
 
 			output = Output{Valid: true, FieldName: input.FieldName + "Res", Value: value}

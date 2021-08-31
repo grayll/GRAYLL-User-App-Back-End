@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"flag"
-	"math"
+
+	//"math"
 	"os"
 	"os/signal"
 	"strconv"
@@ -23,11 +24,10 @@ import (
 	//_ "net/http/pprof"
 
 	"github.com/algolia/algoliasearch-client-go/v3/algolia/search"
-	"github.com/antigloss/go/logger"
+	//"github.com/antigloss/go/logger"
 	stellar "github.com/huyntsgs/stellar-service"
 	"github.com/stellar/go/clients/horizonclient"
 	"github.com/stellar/go/protocols/horizon"
-
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -114,22 +114,7 @@ func main() {
 	stellar.SetupParam(float64(1000), config.IsMainNet, config.HorizonUrl)
 	ttl, _ := time.ParseDuration("12h")
 	cache, err := api.NewRedisCacheHost(ttl, config.RedisHost, config.RedisPass, config.RedisPort)
-	// cache, err := api.NewRedisCache(ttl, config)
-	// cnt := 0
-	// if err != nil {
-	// 	for {
-	// 		cnt++
-	// 		time.Sleep(1 * time.Second)
-	// 		cache, err = api.NewRedisCache(ttl, config)
-	// 		if err == nil {
-	// 			break
-	// 		}
-	// 		if cnt > 120 {
-	// 			log.Fatalln("Can not connect to redis", err)
-	// 		}
 
-	// 	}
-	// }
 	log.SetOutput(&lumberjack.Logger{
 		Filename:   configPath + "log/trade-log.txt",
 		MaxSize:    10, // megabytes
@@ -185,95 +170,26 @@ func main() {
 		}
 	}
 
-	logger.Init(configPath+"log", // specify the directory to save the logfiles
-		40,    // maximum logfiles allowed under the specified log directory
-		10,    // number of logfiles to delete when number of logfiles exceeds the configured limit
-		10,    // maximum size of a logfile in MB
-		false) // whether logs with Trace level are written down
+	// logger.Init(configPath+"log", // specify the directory to save the logfiles
+	// 	40,    // maximum logfiles allowed under the specified log directory
+	// 	10,    // number of logfiles to delete when number of logfiles exceeds the configured limit
+	// 	10,    // maximum size of a logfile in MB
+	// 	false) // whether logs with Trace level are written down
 
 	log.Println("main net: %v", *isMainNet)
 
-	orderBookReq := horizonclient.OrderBookRequest{
-		SellingAssetType:   horizonclient.AssetTypeNative,
-		SellingAssetCode:   "XLM",
-		SellingAssetIssuer: "",
-		BuyingAssetCode:    "GRX",
-		BuyingAssetIssuer:  "GAQQZMUNB7UCL2SXHU6H7RZVNFL6PI4YXLPJNBXMOZXB2LOQ7LODH333",
-		BuyingAssetType:    horizonclient.AssetType4,
-		Limit:              1,
-	}
+	//dexAsset.StreamOrderBook(ctx, "XLM", "", horizonclient.AssetTypeNative, horizonclient.AssetType4)
+	//dexAsset.StreamOrderBook(ctx, "USDC", "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN", horizonclient.AssetType4, horizonclient.AssetType4)
+	//dexAsset.StreamOrderBook(ctx, "USDC", "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN", horizonclient.AssetType4, horizonclient.AssetType4)
+	// dexAsset := DexAsset{assetCode: "GRX", assetIssuer: "GAQQZMUNB7UCL2SXHU6H7RZVNFL6PI4YXLPJNBXMOZXB2LOQ7LODH333", store: store}
+	// dexAsset.StreamOrderBook(ctx, "XLM", "", horizonclient.AssetTypeNative, horizonclient.AssetType4)
+	dexAsset1 := DexAsset{assetCode: "USDC", assetIssuer: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN", store: store}
+	dexAsset1.StreamOrderBook(ctx, "XLM", "", horizonclient.AssetTypeNative, horizonclient.AssetType4)
 
-	var askPrice, bidPrice float64
-
-	orderBookHandler := func(orderbook horizon.OrderBookSummary) {
-		defer func() {
-			if v := recover(); v != nil {
-				log.Println("capture a panic:", v)
-				log.Println("avoid crashing the program")
-			}
-		}()
-
-		log.Println("Asks:")
-		var askf float64 = 0
-		for _, ask := range orderbook.Asks {
-			askf = float64(ask.PriceR.D) / float64(ask.PriceR.N)
-			log.Println(ask.Amount, askf)
-		}
-		log.Println("End Asks:")
-
-		log.Println("Bids:")
-		var bidf float64 = 0
-		for _, bid := range orderbook.Bids {
-			bidf = float64(bid.PriceR.D) / float64(bid.PriceR.N)
-			log.Println(bid.Amount, bidf)
-		}
-		if askPrice > 0 && bidPrice > 0 && askPrice == askf && bidPrice == bidf {
-			return
-		}
-		askbid := make(map[string]interface{})
-		if askf > 0 && bidf > 0 {
-			askPrice = askf
-			bidPrice = bidf
-			askbid = map[string]interface{}{"xlmgrx_ask": askf, "xlmgrx_bid": bidf}
-		} else if askf > 0 {
-			askPrice = askf
-			askbid = map[string]interface{}{"xlmgrx_ask": askf}
-		} else if bidf > 0 {
-			bidPrice = bidf
-			askbid = map[string]interface{}{"xlmgrx_bid": bidf}
-		}
-		_, err = store.Doc(PRICE_PATH).Set(ctx, askbid, firestore.MergeAll)
-		if err != nil {
-			store, _ = ReconnectFireStore("grayll-app-f3f3f3", 120)
-			log.Println("Update xlmp error: ", err)
-			_, err = store.Doc(PRICE_PATH).Set(ctx, askbid, firestore.MergeAll)
-			if err != nil {
-				log.Println("Update xlmp error after retry: ", err)
-				//return
-			}
-		}
-		// _, err = grzStore.Doc(PRICE_PATH).Set(ctx, askbid, firestore.MergeAll)
-		// if err != nil {
-		// 	log.Println("Update xlmp error: ", err)
-
-		// }
-		log.Println("End bid")
-	}
-
-	go func() {
-		err = stellar.HorizonClient.StreamOrderBooks(ctx, orderBookReq, orderBookHandler)
-		if err != nil {
-			log.Println("StreamOrderBooks", err)
-
-		}
-	}()
-
-	// go func() {
-	// 	log.Println(http.ListenAndServe("localhost:8091", nil))
-	// }()
+	// dexAsset1 := DexAsset{assetCode: "XLM", assetIssuer: "", store: store}
+	// dexAsset1.StreamOrderBook(ctx, "USDC", "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN", horizonclient.AssetType4, horizonclient.AssetTypeNative)
 
 	tradeRequest := horizonclient.TradeRequest{Cursor: "now"}
-
 	tradeHandler := func(trade horizon.Trade) {
 		defer func() {
 			if v := recover(); v != nil {
@@ -281,10 +197,6 @@ func main() {
 				log.Println("avoid crashing the program")
 			}
 		}()
-
-		// identify base account - counteraccount is belong to grayll
-		// base is buyer, counter is seller
-		//get pair grx/xlm
 
 		asset := "GRX"
 		if trade.BaseAssetType == "native" && strings.Contains(trade.CounterAssetCode, "GRX") {
@@ -318,13 +230,8 @@ func main() {
 				//return
 			}
 
-			//priceusd := xlmGrxPrice * xlmUsdPrice
-
 			baseAmount, _ := strconv.ParseFloat(trade.BaseAmount, 64)
 			totalusd := xlmusd * baseAmount
-
-			// txId := trade.ID
-			// offerId := trade.OfferID
 
 			log.Println("counterAcc:", counterAcc)
 
@@ -335,9 +242,6 @@ func main() {
 			uidBaseAcc, err := cache.GetUidFromPublicKey(baseAccount)
 			log.Println("uidBaseAcc:", uidBaseAcc)
 			if err == nil && uidBaseAcc != "" {
-
-				// tx, err := stellar.HorizonClient.TransactionDetail(trade)
-				// log.Println("Memo payment:", tx.Memo)
 
 				data := map[string]interface{}{
 					"time":     time,
@@ -400,21 +304,119 @@ func main() {
 				algoliaOrderIndex.SaveObject(data)
 			}
 		}
+
+		if trade.BaseAssetType == "USDC" && strings.Contains(trade.CounterAssetCode, "XLM") {
+
+			baseAccount := trade.BaseAccount
+			counterAcc := trade.CounterAccount
+
+			amount := trade.CounterAmount
+			totalusdc := trade.BaseAmount
+			time := trade.LedgerCloseTime.Unix()
+
+			grxusdc := float64(trade.Price.D) / float64(trade.Price.N)
+			//grxusd = xlmgrx * xlmusd
+
+			_, err = store.Doc(PRICE_PATH).Set(ctx, map[string]interface{}{"grxusdc": grxusdc}, firestore.MergeAll)
+			if err != nil {
+				store, _ = ReconnectFireStore("grayll-app-f3f3f3", 120)
+				log.Println("Update grxp error: ", err)
+				_, err = store.Doc(PRICE_PATH).Set(ctx, map[string]interface{}{"grxusdc": grxusdc}, firestore.MergeAll)
+				if err != nil {
+					log.Println("Update grxp error after retry: ", err)
+					//return
+				}
+			}
+
+			log.Println("counterAcc:", counterAcc)
+
+			offerId := trade.ID[:strings.Index(trade.ID, "-")]
+			// cache.SetGRXPrice(xlmgrx)
+			// cache.SetGRXUsd(grxusd)
+
+			uidBaseAcc, err := cache.GetUidFromPublicKey(baseAccount)
+			log.Println("uidBaseAcc:", uidBaseAcc)
+			if err == nil && uidBaseAcc != "" {
+
+				data := map[string]interface{}{
+					"time":   time,
+					"type":   "BUY",
+					"asset":  asset,
+					"amount": amount,
+					//"xlmp":     xlmgrx,
+					//"totalxlm": totalxlm,
+					"priceusdc": grxusdc,
+					"totalusdc": totalusdc,
+					"offerId":   offerId,
+				}
+
+				docRef := store.Collection("trades").Doc("users").Collection(uidBaseAcc).NewDoc()
+				_, err = docRef.Set(ctx, data)
+				if err != nil {
+					log.Println("SaveNotice error: ", uidBaseAcc, err)
+					store, err = ReconnectFireStore("grayll-app-f3f3f3", 60)
+					docRef = store.Collection("trades").Doc("users").Collection(uidBaseAcc).NewDoc()
+					_, err = docRef.Set(ctx, data)
+					if err != nil {
+						log.Println("SaveNotice retried: ", uidBaseAcc, err)
+						return
+					}
+				}
+
+				data["id"] = docRef.ID
+				data["uid"] = uidBaseAcc
+				algoliaOrderIndex.SaveObject(data)
+			}
+			uidCounter, err := cache.GetUidFromPublicKey(counterAcc)
+			log.Println("uidCounter:", uidCounter)
+			if err == nil && uidCounter != "" {
+				data := map[string]interface{}{
+					"time":   time,
+					"type":   "SELL",
+					"asset":  asset,
+					"amount": amount,
+					// "xlmp":     xlmgrx,
+					// "totalxlm": totalxlm,
+					"priceusdc": grxusdc,
+					"totalusdc": totalusdc,
+					"offerId":   offerId,
+				}
+
+				docRef := store.Collection("trades").Doc("users").Collection(uidCounter).NewDoc()
+				_, err = docRef.Set(ctx, data)
+				if err != nil {
+					store, err = ReconnectFireStore("grayll-app-f3f3f3", 60)
+					log.Println("SaveNotice error: ", uidCounter, err)
+					docRef = store.Collection("trades").Doc("users").Collection(uidCounter).NewDoc()
+					_, err = docRef.Set(ctx, data)
+					if err != nil {
+						log.Println("SaveNotice retried: ", uidCounter, err)
+						return
+					}
+				}
+				data["id"] = docRef.ID
+				data["uid"] = uidCounter
+				algoliaOrderIndex.SaveObject(data)
+			}
+		}
+
 		//get pair xlm/usd
-		if trade.BaseAssetType == "native" && trade.CounterAssetCode == "USD" {
-			//log.Println("xlmUsdPrice:", xlmUsdPrice)
+		if trade.BaseAssetType == "native" && trade.CounterAssetCode == "USDC" {
+
 			xlmusd = float64(trade.Price.N) / float64(trade.Price.D)
+			xlmusdc := float64(float64(trade.Price.D / trade.Price.N))
 			grxusd = xlmgrx * xlmusd
-			_, err = store.Doc(PRICE_PATH).Set(ctx, map[string]interface{}{"xlmusd": xlmusd, "grxusd": grxusd}, firestore.MergeAll)
+			log.Println("xlmusd:", xlmusd)
+			_, err = store.Doc(PRICE_PATH).Set(ctx, map[string]interface{}{"xlmusd": xlmusd, "xlmusdc": xlmusdc, "grxusd": grxusd}, firestore.MergeAll)
 			if err != nil {
 				store, err = ReconnectFireStore("grayll-app-f3f3f3", 60)
 				log.Println("Update xlmp error: ", err)
-				_, err = store.Doc(PRICE_PATH).Set(ctx, map[string]interface{}{"xlmusd": xlmusd, "grxusd": grxusd}, firestore.MergeAll)
+				_, err = store.Doc(PRICE_PATH).Set(ctx, map[string]interface{}{"xlmusd": xlmusd, "xlmusdc": xlmusdc, "grxusd": grxusd}, firestore.MergeAll)
 				if err != nil {
 					log.Println("ERROR Update xlmp: ", err)
 				}
 			}
-			_, err = grzStore.Doc(PRICE_PATH).Set(ctx, map[string]interface{}{"xlmusd": xlmusd, "grxusd": grxusd}, firestore.MergeAll)
+			_, err = grzStore.Doc(PRICE_PATH).Set(ctx, map[string]interface{}{"xlmusd": xlmusd, "xlmusdc": xlmusdc, "grxusd": grxusd}, firestore.MergeAll)
 			if err != nil {
 				log.Println("Update xlmp error: ", err)
 				//return
@@ -424,76 +426,6 @@ func main() {
 		}
 
 	}
-
-	go func(ctx context.Context, xlmgrxChan chan float64) {
-		ticker := time.NewTicker(1 * time.Minute)
-
-		//isPause := false
-		pauseUntil := int64(0)
-		contxt := context.Background()
-
-		doc, err := store.Doc(ADMIN_SETTING).Get(contxt)
-		if err == nil {
-			pauseUntil = doc.Data()["pauseUntil"].(int64)
-			log.Println("ispause", pauseUntil)
-			cache.Client.HSet("pauseClosing", "pauseUntil", pauseUntil)
-		}
-
-		previousPrice := xlmgrx
-		currentPrice := xlmgrx
-
-		for {
-			select {
-			case <-ticker.C:
-				//log.Println("tick. xlmgrx", xlmgrx, previousPrice)
-				if xlmgrx != previousPrice {
-					docs, err := store.Collection("asset_algo_values/grxxlm/frame_01m").
-						Where("UNIX_timestamp", ">=", time.Now().Unix()-config.PauseTimeFrame).OrderBy("UNIX_timestamp", firestore.Asc).Limit(1).Documents(ctx).GetAll()
-					if err == nil && len(docs) > 0 {
-						// check if price change in 15 minute
-						lastPrice := docs[0].Data()["price"].(float64)
-						log.Println("tick.lastPrice:", lastPrice, "currentPrice:", xlmgrx)
-						if math.Abs(100*(xlmgrx-lastPrice))/lastPrice > config.PauseIncPer && time.Now().Unix() > pauseUntil {
-							// pause close algo 60 minutes
-							//isPause = true
-							pauseUntil = time.Now().Unix() + config.PausePeriod
-							log.Println("tick.price change over 15% within 15 minute, pause until:", pauseUntil)
-							store.Doc(ADMIN_SETTING).Set(contxt, map[string]interface{}{"pauseUntil": pauseUntil}, firestore.MergeAll)
-							//cache.Client.HSet("pauseClosing", "isPause", true)
-							cache.Client.HSet("pauseClosing", "pauseUntil", pauseUntil)
-							// set to redis cache for gry1,..grz can read
-						}
-					}
-				} else {
-					log.Println("tick.Price is not change. lastPrice:", previousPrice, "currentPrice:", xlmgrx)
-				}
-			case newPrice := <-xlmgrxChan:
-
-				previousPrice = currentPrice
-				currentPrice = newPrice
-				log.Println("pricechange.currentPrice:", currentPrice, "previousPrice", previousPrice)
-
-				per := math.Abs(currentPrice-previousPrice) * 100 / previousPrice
-				if per > config.PauseIncPerExt && time.Now().Unix() < pauseUntil {
-					pauseUntil += config.PausePeriodExt
-					log.Println("pricechange.price change over 10%, pause until:", pauseUntil)
-					store.Doc(ADMIN_SETTING).Set(contxt, map[string]interface{}{"pauseUntil": pauseUntil}, firestore.MergeAll)
-					cache.Client.HSet("pauseClosing", "pauseUntil", pauseUntil)
-				} else if per > config.PauseIncPer && time.Now().Unix() > pauseUntil {
-					pauseUntil = time.Now().Unix() + config.PausePeriod
-					store.Doc(ADMIN_SETTING).Set(contxt, map[string]interface{}{"pauseUntil": pauseUntil}, firestore.MergeAll)
-					cache.Client.HSet("pauseClosing", "pauseUntil", pauseUntil)
-					log.Println("pricechange.price change over 15%, pause until:", pauseUntil)
-				} else {
-					log.Println("pricechange.price is not change over 10%. previousPrice:", previousPrice, "currentPrice:", currentPrice, "percent:", per)
-				}
-
-			case <-ctx.Done():
-				return
-			}
-
-		}
-	}(ctx, xlmgrxChan)
 
 	go func() {
 
@@ -536,4 +468,87 @@ func ReconnectFireStore(projectId string, timeout int) (*firestore.Client, error
 
 	}
 	return client, err
+}
+
+type DexAsset struct {
+	assetCode   string
+	assetIssuer string
+	store       *firestore.Client
+}
+
+func (asset DexAsset) NewOrderBookReq(sellingAssetCode, sellingAssetIssuer string, sellingAssetType, buyingAssetType horizonclient.AssetType) horizonclient.OrderBookRequest {
+
+	return horizonclient.OrderBookRequest{
+		SellingAssetType:   sellingAssetType,
+		SellingAssetCode:   sellingAssetCode,
+		SellingAssetIssuer: sellingAssetIssuer,
+		//GRX
+		BuyingAssetCode:   asset.assetCode,
+		BuyingAssetIssuer: asset.assetIssuer,
+		BuyingAssetType:   buyingAssetType,
+		Limit:             1,
+	}
+}
+
+func (asset DexAsset) StreamOrderBook(ctx context.Context, sellingAssetCode, sellingAssetIssuer string, sellingAssetType, buyingAssetType horizonclient.AssetType) {
+	var askPrice, bidPrice float64
+
+	orderBookReq := asset.NewOrderBookReq(sellingAssetCode, sellingAssetIssuer, sellingAssetType, buyingAssetType)
+
+	prefixPrice := strings.ToLower(sellingAssetCode) + strings.ToLower(asset.assetCode)
+
+	orderBookHandler := func(orderbook horizon.OrderBookSummary) {
+		defer func() {
+			if v := recover(); v != nil {
+				log.Println("capture a panic:", v)
+				log.Println("avoid crashing the program")
+			}
+		}()
+
+		var askf float64 = 0
+		for _, ask := range orderbook.Asks {
+			askf = float64(ask.PriceR.D) / float64(ask.PriceR.N)
+			log.Println("Ask:", sellingAssetCode, ask.Amount, askf)
+		}
+
+		var bidf float64 = 0
+		for _, bid := range orderbook.Bids {
+			bidf = float64(bid.PriceR.D) / float64(bid.PriceR.N)
+			log.Println("Bid:", sellingAssetCode, bid.Amount, bidf)
+		}
+		if askPrice > 0 && bidPrice > 0 && askPrice == askf && bidPrice == bidf {
+			return
+		}
+		askbid := make(map[string]interface{})
+		if askf > 0 && bidf > 0 {
+			askPrice = askf
+			bidPrice = bidf
+			askbid = map[string]interface{}{prefixPrice + "_ask": askf, prefixPrice + "_bid": bidf}
+		} else if askf > 0 {
+			askPrice = askf
+			askbid = map[string]interface{}{prefixPrice + "_ask": askf}
+		} else if bidf > 0 {
+			bidPrice = bidf
+			askbid = map[string]interface{}{prefixPrice + "_bid": bidf}
+		}
+		_, err := asset.store.Doc(PRICE_PATH).Set(ctx, askbid, firestore.MergeAll)
+		if err != nil {
+			asset.store, _ = ReconnectFireStore("grayll-app-f3f3f3", 120)
+			log.Println("Update xlmp error: ", err)
+			_, err = asset.store.Doc(PRICE_PATH).Set(ctx, askbid, firestore.MergeAll)
+			if err != nil {
+				log.Println("Update xlmp error after retry: ", err)
+				//return
+			}
+		}
+
+	}
+
+	go func() {
+		err := stellar.HorizonClient.StreamOrderBooks(ctx, orderBookReq, orderBookHandler)
+		if err != nil {
+			log.Println("StreamOrderBooks", err)
+
+		}
+	}()
 }

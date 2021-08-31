@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"flag"
 
+	"github.com/go-redis/redis"
+
 	"fmt"
 	"log"
 	"strconv"
-
-	"strings"
 
 	"os"
 	"os/signal"
@@ -30,7 +30,7 @@ import (
 	stellar "github.com/huyntsgs/stellar-service"
 	"github.com/stellar/go/clients/horizonclient"
 	"github.com/stellar/go/protocols/horizon/operations"
-	//"gopkg.in/natefinch/lumberjack.v2"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 type (
@@ -87,11 +87,11 @@ func main() {
 
 	// cache and firestore and webpush
 	var store *firestore.Client
-	var gry1Client *firestore.Client
+	//var gry1Client *firestore.Client
 	var err error
 	var configPath string
 	var config *Config
-	reserveSupply := new(ReserveSupply)
+	//reserveSupply := new(ReserveSupply)
 
 	isMainNet := flag.Bool("mainnet", false, "run on mainnet or testnet")
 	isProd := flag.Bool("prod", false, "run on prod or local")
@@ -102,7 +102,7 @@ func main() {
 		configPath = "/home/huykbc/"
 		config = parseConfig(configPath + "config1.json")
 	} else {
-		configPath = "/home/bc/go/src/bitbucket.org/grayll/grayll.io-user-app-back-end/streaming/"
+		configPath = "/home/bc/go/src/bitbucket.org/grayll/grayll.io-user-app-back-end/payment/"
 		if *isMainNet {
 			config = parseConfig(configPath + "config1.json")
 		} else {
@@ -110,43 +110,28 @@ func main() {
 		}
 	}
 
-	// log.SetOutput(&lumberjack.Logger{
-	// 	Filename:   configPath + "log/payment-log.txt",
-	// 	MaxSize:    5, // megabytes
-	// 	MaxBackups: 2,
-	// 	MaxAge:     10,   //days
-	// 	Compress:   true, // disabled by default
-	// })
+	log.SetOutput(&lumberjack.Logger{
+		Filename:   configPath + "log/payment-log.txt",
+		MaxSize:    5, // megabytes
+		MaxBackups: 2,
+		MaxAge:     10,   //days
+		Compress:   true, // disabled by default
+	})
 
 	store, err = GetFsClient(true, configPath)
 	if err != nil {
 		log.Fatalln("main: GetFsClient error: ", err)
 	}
 
-	gry1Client, err = GetGryClient(configPath + "grayll-gry-1-balthazar-fb-admin.json")
-	if err != nil {
-		log.Fatalln("main: gry1Client error: ", err)
-	}
+	// gry1Client, err = GetGryClient(configPath + "grayll-gry-1-balthazar-fb-admin.json")
+	// if err != nil {
+	// 	log.Fatalln("main: gry1Client error: ", err)
+	// }
 
 	stellar.SetupParam(float64(1000), config.IsMainNet, config.HorizonUrl)
 
 	ttl, _ := time.ParseDuration("12h")
 	cache, err := api.NewRedisCacheHost(ttl, config.RedisHost, config.RedisPass, config.RedisPort)
-	// cnt := 0
-	// if err != nil {
-	// 	for {
-	// 		cnt++
-	// 		time.Sleep(1 * time.Second)
-	// 		cache, err = api.NewRedisCacheHost(ttl, config.Host, config.RedisPass, config.RedisPort)
-	// 		if err == nil {
-	// 			break
-	// 		}
-	// 		if cnt > 120 {
-	// 			log.Fatalln("Can not connect to redis", err)
-	// 		}
-
-	// 	}
-	// }
 
 	client := search.NewClient("BXFJWGU0RM", "ef746e2d654d89f2a32f82fd9ffebf9e")
 	algoliaTransferIndex := client.InitIndex("transfers-ua")
@@ -176,12 +161,12 @@ func main() {
 	opRequest := horizonclient.OperationRequest{Cursor: "now", IncludeFailed: false}
 	ctx, cancel := context.WithCancel(context.Background())
 	operationHandler := func(op operations.Operation) {
-		defer func() {
-			if v := recover(); v != nil {
-				log.Println("capture a panic:", v)
-				log.Println("avoid crashing the program")
-			}
-		}()
+		// defer func() {
+		// 	if v := recover(); v != nil {
+		// 		log.Println("capture a panic:", v)
+		// 		log.Println("avoid crashing the program")
+		// 	}
+		// }()
 		/*log.Println("op type:", op.GetType())
 		if op.GetType() == "set_option" {
 			bytes, err := json.Marshal(op)
@@ -222,19 +207,24 @@ func main() {
 				return
 			}
 
-			if payment.Asset.Type == "native" || payment.Asset.Code == config.AssetCode {
+			if payment.Asset.Type == "native" || payment.Asset.Code == config.AssetCode || payment.Asset.Code == "USDC" {
 				code := payment.Code
 				if code == "" {
 					code = "XLM"
 				}
-				log.Printf("Account %s send to %s with %v %s\n", payment.From, payment.To, payment.Amount, code)
+				//log.Printf("Account x %s send to %s with %v %s\n", payment.From, payment.To, payment.Amount, code)
+
+				if payment.Asset.Code == config.AssetCode || payment.Asset.Code == "usdc" || payment.Asset.Code == "USDC" {
+					log.Printf("Account %s send to %s with %v %s\n", payment.From, payment.To, payment.Amount, code)
+				}
 
 				// Notification for user account
 				// Check whether account belongs to grayll system
 				var uid string
 				//isIncomingPayment := true
 				uid, err = cache.GetUidFromPublicKey(payment.To)
-				if err != nil {
+				if err != nil && err != redis.Nil {
+					log.Println("Error Get redis cache", err)
 					cache, err = api.NewRedisCacheHost(ttl, config.RedisHost, config.RedisPass, config.RedisPort)
 					uid, err = cache.GetUidFromPublicKey(payment.To)
 					if err != nil {
@@ -242,7 +232,8 @@ func main() {
 					}
 				}
 				uidFrom, err := cache.GetUidFromPublicKey(payment.From)
-				if err != nil {
+				if err != nil && err != redis.Nil {
+					log.Println("Error Get redis cache 1", err)
 					cache, err = api.NewRedisCacheHost(ttl, config.RedisHost, config.RedisPass, config.RedisPort)
 					uidFrom, err = cache.GetUidFromPublicKey(payment.From)
 					if err != nil {
@@ -250,41 +241,41 @@ func main() {
 					}
 				}
 
-				updateBlFn := func(isIncome bool, idUser string) {
-					amount, _ := strconv.ParseFloat(payment.Amount, 64)
-					if !isIncome {
-						amount = -amount
-					}
-					fieldPath := ""
-					value := float64(0)
-					if idUser == config.Hotwallet1 {
-						fieldPath = "Hotwallet1"
-						reserveSupply.Hotwallet1 += amount
-						value = reserveSupply.Hotwallet1
-					} else if idUser == config.Hotwallet2 {
-						fieldPath = "Hotwallet2"
-						reserveSupply.Hotwallet2 += amount
-						value = reserveSupply.Hotwallet2
-					} else if idUser == config.SuperAdminAddress {
-						fieldPath = "SuperAdminAccount"
-						reserveSupply.SuperAdmin += amount
-						value = reserveSupply.SuperAdmin
-					} else if idUser == config.SystemReserve1 {
-						reserveSupply.SystemReserve1 += amount
-						fieldPath = "SystemReserveAccount1"
-						value = reserveSupply.SystemReserve1
-					} else if idUser == config.SystemReserve2 {
-						fieldPath = "SystemReserveAccount2"
-						reserveSupply.SystemReserve2 += amount
-						value = reserveSupply.SystemReserve2
-					}
-					if fieldPath != "" {
-						updateLas(reserveSupply)
-						gry1Client.Doc("gry_1_algo_input/function_2_input").Set(ctx, map[string]interface{}{
-							fieldPath: value, "Las": reserveSupply.Las}, firestore.MergeAll)
-						cache.SetFunc2LAS(reserveSupply.Las)
-					}
-				}
+				// updateBlFn := func(isIncome bool, idUser string) {
+				// 	amount, _ := strconv.ParseFloat(payment.Amount, 64)
+				// 	if !isIncome {
+				// 		amount = -amount
+				// 	}
+				// 	fieldPath := ""
+				// 	value := float64(0)
+				// 	if idUser == config.Hotwallet1 {
+				// 		fieldPath = "Hotwallet1"
+				// 		reserveSupply.Hotwallet1 += amount
+				// 		value = reserveSupply.Hotwallet1
+				// 	} else if idUser == config.Hotwallet2 {
+				// 		fieldPath = "Hotwallet2"
+				// 		reserveSupply.Hotwallet2 += amount
+				// 		value = reserveSupply.Hotwallet2
+				// 	} else if idUser == config.SuperAdminAddress {
+				// 		fieldPath = "SuperAdminAccount"
+				// 		reserveSupply.SuperAdmin += amount
+				// 		value = reserveSupply.SuperAdmin
+				// 	} else if idUser == config.SystemReserve1 {
+				// 		reserveSupply.SystemReserve1 += amount
+				// 		fieldPath = "SystemReserveAccount1"
+				// 		value = reserveSupply.SystemReserve1
+				// 	} else if idUser == config.SystemReserve2 {
+				// 		fieldPath = "SystemReserveAccount2"
+				// 		reserveSupply.SystemReserve2 += amount
+				// 		value = reserveSupply.SystemReserve2
+				// 	}
+				// 	if fieldPath != "" {
+				// 		updateLas(reserveSupply)
+				// 		gry1Client.Doc("gry_1_algo_input/function_2_input").Set(ctx, map[string]interface{}{
+				// 			fieldPath: value, "Las": reserveSupply.Las}, firestore.MergeAll)
+				// 		cache.SetFunc2LAS(reserveSupply.Las)
+				// 	}
+				// }
 
 				f := func(isIncome bool, idUser string) {
 					// Get subscription and push
@@ -305,26 +296,25 @@ func main() {
 						amount = "-" + string(payment.Amount)
 					}
 
-					if strings.Contains(code, "GRX") {
-						issuer = "Grayll"
-						// asset is GRX, check if account related to GRX balance and update
-						updateBlFn(isIncome, idUser)
-					} else {
-						issuer = "Stellar"
-					}
+					// if strings.Contains(code, "GRX") {
+					// 	issuer = "Grayll"
+					// 	// asset is GRX, check if account related to GRX balance and update
+					// 	updateBlFn(isIncome, idUser)
+					// } else if strings.Contains(code, "USDC") {
+					// 	updateBlFn(isIncome, idUser)
+					// } else if strings.Contains(code, "usdc") {
+					// 	updateBlFn(isIncome, idUser)
+					// } else {
+					// 	issuer = "Stellar"
+					// }
 
 					notice := map[string]interface{}{
-						"type":   "wallet",
-						"title":  title,
-						"isRead": false,
-						"body":   body,
-						"time":   payment.LedgerCloseTime.Unix(),
-						"txId":   payment.ID,
-						// "vibrate": []int32{100, 50, 100},
-						// "icon":    "https://app.grayll.io/favicon.ico",
-						// "data": map[string]interface{}{
-						// 	"url": config.Host + "/notifications/overview",
-						// },
+						"type":    "wallet",
+						"title":   title,
+						"isRead":  false,
+						"body":    body,
+						"time":    payment.LedgerCloseTime.Unix(),
+						"txId":    payment.ID,
 						"counter": counter,
 						"amount":  amount,
 						"asset":   code,
@@ -346,9 +336,6 @@ func main() {
 					ctx := context.Background()
 
 					// Save to firestore
-					if code == "GRXT" {
-						code = "GRX"
-					}
 					docRef := store.Collection("notices").Doc("wallet").Collection(idUser).NewDoc()
 					_, err = docRef.Set(ctx, notice)
 					if err != nil {

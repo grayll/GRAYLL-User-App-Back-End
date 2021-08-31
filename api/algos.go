@@ -903,6 +903,8 @@ func GenDataReportMail(reportSetting ReportDataSetting, data map[string]interfac
 	//If Wallet Balance has been selected
 	xlmBalance := GetFloatValue(data["XLM"])
 	grxBalance := GetFloatValue(data["GRX"])
+	usdcBalance := GetFloatValue(data["USDC"])
+	gryBalance := 0.0
 	walletBalance := xlmBalance*xlmusd + grxBalance*grxusd
 	if reportSetting.WalletBalance {
 		contents = append(contents, []string{
@@ -910,7 +912,9 @@ func GenDataReportMail(reportSetting ReportDataSetting, data map[string]interfac
 			fmt.Sprintf(`Total XLM Balance: %.6f XLM`, xlmBalance),
 			fmt.Sprintf(`Total XLM Balance: $ %.6f`, xlmBalance*xlmusd),
 			fmt.Sprintf(`Total GRX Balance: %.6f GRX`, grxBalance),
-			fmt.Sprintf(`Total GRX Balance: $ %.6f`, grxBalance*grxusd)}...)
+			fmt.Sprintf(`Total GRX Balance: $ %.6f`, grxBalance*grxusd),
+			fmt.Sprintf(`Total GRY Balance: $ %.6f`, gryBalance*grxusd),
+			fmt.Sprintf(`Total USDC Balance: $ %.6f`, usdcBalance)}...)
 	}
 
 	//If Account Value has been selected by the user

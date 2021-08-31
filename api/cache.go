@@ -95,12 +95,12 @@ func NewRedisCacheHost(ttl time.Duration, host, pass string, port int) (*RedisCa
 	})
 
 	pong, err := cache.Client.Ping().Result()
-	fmt.Println("err:", pong, err)
+	fmt.Println("NewRedisCacheHost:", pong, err)
 	cnt := 0
 	if err != nil {
 		for {
 			cnt++
-			time.Sleep(1 * time.Second)
+			time.Sleep(2 * time.Second)
 			cache.Client = redis.NewClient(&redis.Options{
 				Addr:         fmt.Sprintf("%s:%d", host, port),
 				Password:     pass,

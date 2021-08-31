@@ -50,7 +50,7 @@ grayll@redis-server:~$ redis-cli
 ## Copy streaming server to computer Engine
 gcloud config set project grayll-app-f3f3f3
 
-gcloud compute scp streaming redis-server:/home/bc
+gcloud compute scp payment redis-server:/home/bc
 gcloud compute scp trade redis-server:/home/bc
 gcloud compute scp streaming1.service redis-server:/home/bc
 gcloud compute scp trade1.service redis-server:/home/bc

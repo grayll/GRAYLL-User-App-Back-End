@@ -365,7 +365,7 @@ func (h UserHandler) Login() gin.HandlerFunc {
 
 		tokeExpTime := time.Now().Unix() + TokeExpiredTime
 		userMeta := map[string]interface{}{"UrWallet": 0, "UrGRY1": 0, "UrGRY2": 0, "UrGRY3": 0, "UrGRZ": 0, "UrGeneral": 0, "OpenOrders": 0, "OpenOrdersGRX": 0,
-			"OpenOrdersXLM": 0, "GRX": 0, "XLM": 0, "TokenExpiredTime": tokeExpTime}
+			"OpenOrdersXLM": 0, "GRX": 0, "XLM": 0, "USDC": 0, "TokenExpiredTime": tokeExpTime}
 		// set user meta data if account created before 7-Jan-2020
 		snapShot, err := h.apiContext.Store.Doc("users_meta/" + uid).Get(context.Background())
 		if err != nil {
@@ -376,7 +376,12 @@ func (h UserHandler) Login() gin.HandlerFunc {
 			}
 		} else {
 			userMeta = snapShot.Data()
-			h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), map[string]interface{}{"TokenExpiredTime": tokeExpTime}, firestore.MergeAll)
+			if _, ok := userMeta["USDC"]; !ok {
+				h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), map[string]interface{}{"USDC": 0, "OpenOrdersUSDC": 0}, firestore.MergeAll)
+			} else {
+				h.apiContext.Store.Doc("users_meta/"+uid).Set(context.Background(), map[string]interface{}{"TokenExpiredTime": tokeExpTime}, firestore.MergeAll)
+			}
+
 		}
 		userMeta["TokenExpiredTime"] = tokeExpTime
 
@@ -1825,7 +1830,7 @@ func (h UserHandler) ValidateAccount() gin.HandlerFunc {
 		}
 
 		if stellar.IsMainNet {
-			seq, hash, err := stellar.SendXLMCreateAccount(input.PublicKey, float64(2.1), h.apiContext.Config.XlmLoanerSeed)
+			seq, hash, err := stellar.SendXLMCreateAccount(input.PublicKey, float64(2.6), h.apiContext.Config.XlmLoanerSeed)
 			if err != nil {
 				log.Println("ERROR - AccountValidate - unable to create account", uid, err)
 				GinRespond(c, http.StatusOK, INTERNAL_ERROR, err.Error())
@@ -2582,8 +2587,8 @@ func (h UserHandler) UpdateKycDoc() gin.HandlerFunc {
 			docRef = h.apiContext.Store.Collection("notices").Doc("general").Collection(uid).NewDoc()
 			batch.Set(docRef, notice)
 
-			pk, xlm, grx, algoValue := h.GetUserValue(uid)
-			title, content, contents = GenSubmitCompletedGrayll(userInfo["Name"].(string), userInfo["LName"].(string), uid, pk, appType, xlm, grx, algoValue)
+			userValue := h.GetUserValue(uid)
+			title, content, contents = GenSubmitCompletedGrayll(userInfo["Name"].(string), userInfo["LName"].(string), uid, appType, userValue)
 			mail.SendNoticeMail(SUPER_ADMIN_EMAIL, SUPER_ADMIN_NAME, title, contents)
 
 		} else if len(msg) != 0 {

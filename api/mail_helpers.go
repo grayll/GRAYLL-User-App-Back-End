@@ -37,21 +37,23 @@ import (
 // 	return title, content, contents
 // }
 
-func GenDocAcceptedGrayll(name, lname, userId, accountId, appType, docName string, xlm, grx, algoValue float64) (string, string, []string) {
+func GenDocAcceptedGrayll(name, lname, userId, appType, docName string, userValue UserValue) (string, string, []string) {
 	title := fmt.Sprintf(`GRAYLL KYC | %s %s | %s KYC Document | %s Submission Accepted`, name, lname, appType, docName)
 	contents := []string{
 		time.Unix(time.Now().Unix(), 0).Format(`15:04 | 02-01-2006`),
 		fmt.Sprintf(`A KYC Administrator has accepted the %s for a %s KYC submission of %s %s.`, docName, appType, name, lname),
 
-		`User Account: ` + accountId,
+		`User Account: ` + userValue.pk,
 
 		`GRAYLL User ID: ` + userId,
 
 		`====================`,
 
-		fmt.Sprintf(`XLM Balance | XLM %.4f`, xlm),
-		fmt.Sprintf(`GRX Balance | GRX %.4f`, grx),
-		fmt.Sprintf(`USD Algo Position Value | $ %.4f`, algoValue),
+		fmt.Sprintf(`XLM Balance | XLM %.4f`, userValue.xlm),
+		fmt.Sprintf(`GRX Balance | GRX %.4f`, userValue.grx),
+		fmt.Sprintf(`GRY Balance | GRY %.4f`, userValue.gry),
+		fmt.Sprintf(`USDC Balance | USDC %.4f`, userValue.usdc),
+		fmt.Sprintf(`USD DeFi System Value | $ %.4f`, userValue.algoValue),
 	}
 	content := ""
 	for i, sent := range contents {
@@ -107,22 +109,24 @@ func GenDocDeclined(appType, docName, deadline string) (string, string, []string
 
 	return title, content, contents
 }
-func GenDocDeclinedGrayll(name, lname, userId, accountId, appType, docName string, xlm, grx, algoValue float64) (string, string, []string) {
+func GenDocDeclinedGrayll(name, lname, userId, appType, docName string, userValue UserValue) (string, string, []string) {
 
 	title := fmt.Sprintf(`GRAYLL KYC | %s %s | %s KYC Document | %s Submission Declined`, name, lname, appType, docName)
 	contents := []string{
 		time.Unix(time.Now().Unix(), 0).Format(`15:04 | 02-01-2006`),
 		fmt.Sprintf(`A KYC Administrator has declined the %s for a %s KYC submission of %s %s.`, docName, appType, name, lname),
 
-		`User Account: ` + accountId,
+		`User Account: ` + userValue.pk,
 
 		`GRAYLL User ID: ` + userId,
 
 		`====================`,
 
-		fmt.Sprintf(`XLM Balance | XLM %.4f`, xlm),
-		fmt.Sprintf(`GRX Balance | GRX %.4f`, grx),
-		fmt.Sprintf(`USD Algo Position Value | $ %.4f`, algoValue),
+		fmt.Sprintf(`XLM Balance | XLM %.4f`, userValue.xlm),
+		fmt.Sprintf(`GRX Balance | GRX %.4f`, userValue.grx),
+		fmt.Sprintf(`GRY Balance | GRY %.4f`, userValue.gry),
+		fmt.Sprintf(`USDC Balance | USDC %.4f`, userValue.usdc),
+		fmt.Sprintf(`USD DeFi System Value | $ %.4f`, userValue.algoValue),
 	}
 	content := ""
 	for i, sent := range contents {
@@ -135,22 +139,24 @@ func GenDocDeclinedGrayll(name, lname, userId, accountId, appType, docName strin
 	return title, content, contents
 }
 
-func GenSubmitCompletedGrayll(name, lname, userId, accountId, appType string, xlm, grx, algoValue float64) (string, string, []string) {
+func GenSubmitCompletedGrayll(name, lname, userId, appType string, userValue UserValue) (string, string, []string) {
 
 	title := fmt.Sprintf(`GRAYLL | %s %s | %s KYC Submission Completed for Admin Review `, name, lname, appType)
 	contents := []string{
 		time.Unix(time.Now().Unix(), 0).Format(`15:04 | 02-01-2006`),
 		fmt.Sprintf(`%s %s has completed their %s  KYC submission for an administrator to review.`, name, lname, appType),
 
-		`User Account: ` + accountId,
+		`User Account: ` + userValue.pk,
 
 		`GRAYLL User ID: ` + userId,
 
 		`====================`,
 
-		fmt.Sprintf(`XLM Balance | XLM %.4f`, xlm),
-		fmt.Sprintf(`GRX Balance | GRX %.4f`, grx),
-		fmt.Sprintf(`USD Algo Position Value | $ %.4f`, algoValue),
+		fmt.Sprintf(`XLM Balance | XLM %.4f`, userValue.xlm),
+		fmt.Sprintf(`GRX Balance | GRX %.4f`, userValue.grx),
+		fmt.Sprintf(`GRY Balance | GRY %.4f`, userValue.gry),
+		fmt.Sprintf(`USDC Balance | USDC %.4f`, userValue.usdc),
+		fmt.Sprintf(`USD DeFi System Value | $ %.4f`, userValue.algoValue),
 	}
 
 	content := ""
@@ -251,22 +257,24 @@ func GenDocSubmitOk(appType, docName string, lackDocs []string) (string, string,
 	return title, content, contents
 }
 
-func GenFinalDeclinedGrayll(name, lname, userId, accountId, appType string, xlm, grx, algoValue float64) (string, string, []string) {
+func GenFinalDeclinedGrayll(name, lname, userId, appType string, userValue UserValue) (string, string, []string) {
 
 	title := fmt.Sprintf(`GRAYLL | KYC %s Application | %s %s | Declined`, appType, name, lname)
 	contents := []string{
 		time.Unix(time.Now().Unix(), 0).Format(`15:04 | 02-01-2006`),
 		fmt.Sprintf(`A KYC Administrator has declined the %s KYC Application of %s %s.`, appType, name, lname),
 
-		`User Account: ` + accountId,
+		`User Account: ` + userValue.pk,
 
 		`GRAYLL User ID: ` + userId,
 
 		`====================`,
 
-		fmt.Sprintf(`XLM Balance | XLM %.4f`, xlm),
-		fmt.Sprintf(`GRX Balance | GRX %.4f`, grx),
-		fmt.Sprintf(`USD Algo Position Value | $ %.4f`, algoValue),
+		fmt.Sprintf(`XLM Balance | XLM %.4f`, userValue.xlm),
+		fmt.Sprintf(`GRX Balance | GRX %.4f`, userValue.grx),
+		fmt.Sprintf(`GRY Balance | GRY %.4f`, userValue.gry),
+		fmt.Sprintf(`USDC Balance | USDC %.4f`, userValue.usdc),
+		fmt.Sprintf(`USD DeFi System Value | $ %.4f`, userValue.algoValue),
 	}
 	content := ""
 	for i, sent := range contents {
@@ -279,22 +287,24 @@ func GenFinalDeclinedGrayll(name, lname, userId, accountId, appType string, xlm,
 	return title, content, contents
 }
 
-func GenFinalApproveGrayll(name, lname, userId, accountId, appType string, xlm, grx, algoValue float64) (string, string, []string) {
+func GenFinalApproveGrayll(name, lname, userId, appType string, userValue UserValue) (string, string, []string) {
 
 	title := fmt.Sprintf(`GRAYLL | KYC %s Application | %s %s | Approved`, appType, name, lname)
 	contents := []string{
 		time.Unix(time.Now().Unix(), 0).Format(`15:04 | 02-01-2006`),
 		fmt.Sprintf(`A KYC Administrator has approved the %s KYC Application of %s %s.`, appType, name, lname),
 
-		`User Account: ` + accountId,
+		`User Account: ` + userValue.pk,
 
 		`GRAYLL User ID: ` + userId,
 
 		`====================`,
 
-		fmt.Sprintf(`XLM Balance | XLM %.4f`, xlm),
-		fmt.Sprintf(`GRX Balance | GRX %.4f`, grx),
-		fmt.Sprintf(`USD Algo Position Value | $ %.4f`, algoValue),
+		fmt.Sprintf(`XLM Balance | XLM %.4f`, userValue.xlm),
+		fmt.Sprintf(`GRX Balance | GRX %.4f`, userValue.grx),
+		fmt.Sprintf(`GRY Balance | GRY %.4f`, userValue.gry),
+		fmt.Sprintf(`USDC Balance | USDC %.4f`, userValue.usdc),
+		fmt.Sprintf(`USD DeFi System Value | $ %.4f`, userValue.algoValue),
 	}
 	content := ""
 	for i, sent := range contents {
@@ -373,22 +383,24 @@ func GenFinalApprove(name, lname, userId, accountId, appType string) (string, st
 	return title, content, contents
 }
 
-func GenKycRevokeGrayll(name, lname, userId, accountId, appType string, xlm, grx, algoValue float64) (string, string, []string) {
+func GenKycRevokeGrayll(name, lname, userId, appType string, userValue UserValue) (string, string, []string) {
 
 	title := fmt.Sprintf(`GRAYLL | KYC %s Application | %s %s | Revoke`, appType, name, lname)
 	contents := []string{
 		time.Unix(time.Now().Unix(), 0).Format(`15:04 | 02-01-2006`),
 		fmt.Sprintf(`A KYC Administrator has revoked the %s KYC Application of %s %s.`, appType, name, lname),
 
-		`User Account: ` + accountId,
+		`User Account: ` + userValue.pk,
 
 		`GRAYLL User ID: ` + userId,
 
 		`====================`,
 
-		fmt.Sprintf(`XLM Balance | XLM %.4f`, xlm),
-		fmt.Sprintf(`GRX Balance | GRX %.4f`, grx),
-		fmt.Sprintf(`USD Algo Position Value | $ %.4f`, algoValue),
+		fmt.Sprintf(`XLM Balance | XLM %.4f`, userValue.xlm),
+		fmt.Sprintf(`GRX Balance | GRX %.4f`, userValue.grx),
+		fmt.Sprintf(`GRY Balance | GRY %.4f`, userValue.gry),
+		fmt.Sprintf(`USDC Balance | USDC %.4f`, userValue.usdc),
+		fmt.Sprintf(`USD DeFi System Value | $ %.4f`, userValue.algoValue),
 	}
 	content := ""
 	for i, sent := range contents {
